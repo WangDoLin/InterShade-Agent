@@ -127,6 +127,7 @@ export interface SessionState {
   totalCachedTokens?: number;
   maxingMode?: boolean;
   maxingBudget?: number;
+  maxTurns?: number;
 }
 
 export interface PromptTurnEntry {

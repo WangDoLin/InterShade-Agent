@@ -354,3 +354,32 @@ export interface ToolDefinition<TInput = Record<string, unknown>, TOutput = unkn
 - Implements `reach_web_search` with Jina Search protocol and DuckDuckGo HTML fallback.
 - Enforces SSRF socket-level IP pinning, TLS SNI, and secret redacting.
 
+---
+
+## Chapter 12: Autonomous Invariant Fuzzing & Property-Based Testing Engine (2026+)
+
+### 12.1 Core Architectural Principles
+- **From Example-Based to Property-Based Testing**: Rather than relying only on hand-written single-case reproduction scripts, InterShade synthesizes boundary values across thousands of randomized inputs to mathematically test system invariants.
+- **Supported Invariant Properties**:
+  1. `NO_PANIC`: Function must not crash, segfault, or throw unhandled exceptions on extreme boundary inputs.
+  2. `IDEMPOTENCY`: Consecutive applications produce identical state: `f(f(x)) === f(x)`.
+  3. `ROUNDTRIP`: Serializer-deserializer symmetry: `decode(encode(x)) === x`.
+  4. `COMMUTATIVITY`: Order independence: `f(a, b) === f(b, a)`.
+  5. `MONOTONICITY`: Ordering conservation: `x <= y => f(x) <= f(y)`.
+  6. `CUSTOM_PREDICATE`: Pure assertion functions `(result, input) => boolean`.
+
+### 12.2 Multi-Type Boundary Fuzz Generators
+- **Numerical Edge Cases**: `-0`, `NaN`, `Infinity`, `Number.MAX_SAFE_INTEGER`, subnormals, float epsilons, and 32-bit signed overflow boundaries.
+- **String Adversarial Payloads**: Null bytes (`\0`), unicode control characters, high-surrogate emojis, zero-width spaces (`\u200B`), format strings (`%s%s%n`), XSS/SQL/Command injection sequences, and megabyte-scale buffers.
+- **Structural Objects**: Deeply nested prototypes, sparse arrays, cyclic objects, prototype pollution traps (`__proto__`, `constructor`).
+
+### 12.3 Binary Bisecting Counterexample Shrinking
+- When a failure or crash is detected, `InvariantFuzzEngine.shrinkCounterexample()` runs binary bisection and character minimization.
+- Automatically shrinks multi-kilobyte failing inputs down to the minimal 3–5 character counterexample required to reproduce the defect.
+- Automatically synthesizes a standalone reproduction script in `tests/fuzz_repro/` feeding directly into InterShade's SWE `RedRepro` causal repair loop.
+
+### 12.4 Native Tool & Slash Command
+- **Native Tool**: `invariant_fuzz_test` registered in `ToolRegistry` for autonomous agent invocation.
+- **Slash Command**: `/fuzz <file> [functionName] [iterations] [invariantType]` for instant terminal-driven property testing.
+
+

@@ -15,3 +15,4 @@ Thumbs.db
 .intershade/
 .intershader/
 scratch/
+tests/fuzz_repro/

@@ -18,7 +18,16 @@ export class DeveloperHabitService {
   ): DetectedHabit | null {
     const text = userPrompt.toLowerCase().trim();
 
-    // 1. Language Preference
+    return (
+      this.detectLanguageHabit(text, projectId, sessionId) ||
+      this.detectStylingHabit(text, projectId, sessionId) ||
+      this.detectTestingHabit(text, projectId, sessionId) ||
+      this.detectEnvironmentHabit(text, userPrompt, projectId, sessionId) ||
+      this.detectModern2026Habit(text, projectId, sessionId)
+    );
+  }
+
+  private static detectLanguageHabit(text: string, projectId: string, sessionId?: string): DetectedHabit | null {
     if (text.includes('tiếng việt') || text.includes('tieng viet') || text.includes('vietnamese')) {
       return this.recordHabit(
         projectId,
@@ -28,8 +37,10 @@ export class DeveloperHabitService {
         'Vietnamese Language Standard'
       );
     }
+    return null;
+  }
 
-    // 2. CSS / Styling Framework Preference
+  private static detectStylingHabit(text: string, projectId: string, sessionId?: string): DetectedHabit | null {
     if (text.includes('không dùng tailwind') || text.includes('no tailwind') || text.includes('vanilla css')) {
       return this.recordHabit(
         projectId,
@@ -38,7 +49,8 @@ export class DeveloperHabitService {
         'Do not use Tailwind CSS. Prefer standard Vanilla CSS with custom properties or CSS Modules.',
         'Styling Framework: Vanilla CSS'
       );
-    } else if (text.includes('dùng tailwind') || text.includes('use tailwind')) {
+    }
+    if (text.includes('dùng tailwind') || text.includes('use tailwind')) {
       return this.recordHabit(
         projectId,
         sessionId,
@@ -47,8 +59,10 @@ export class DeveloperHabitService {
         'Styling Framework: Tailwind CSS'
       );
     }
+    return null;
+  }
 
-    // 3. Testing Library Preference
+  private static detectTestingHabit(text: string, projectId: string, sessionId?: string): DetectedHabit | null {
     if (text.includes('dùng vitest') || text.includes('use vitest')) {
       return this.recordHabit(
         projectId,
@@ -58,9 +72,16 @@ export class DeveloperHabitService {
         'Test Framework: Vitest'
       );
     }
+    return null;
+  }
 
-    // 4. Port / Environment Invariant
-    const portMatch = userPrompt.match(/port\s+(\d{4,5})/i);
+  private static detectEnvironmentHabit(
+    text: string,
+    rawPrompt: string,
+    projectId: string,
+    sessionId?: string
+  ): DetectedHabit | null {
+    const portMatch = rawPrompt.match(/port\s+(\d{4,5})/i);
     if (portMatch && (text.includes('quy định') || text.includes('luôn') || text.includes('mặc định') || text.includes('always'))) {
       const port = portMatch[1];
       return this.recordHabit(
@@ -71,7 +92,28 @@ export class DeveloperHabitService {
         `Fixed Server Port: ${port}`
       );
     }
+    return null;
+  }
 
+  private static detectModern2026Habit(text: string, projectId: string, sessionId?: string): DetectedHabit | null {
+    if (text.includes('uv') || text.includes('pyproject') || text.includes('modern python')) {
+      return this.recordHabit(
+        projectId,
+        sessionId,
+        'Modern 2026 Toolchain Invariant',
+        'Use uv exclusively for Python dependency management, virtual environments, and fast script execution.',
+        'Toolchain: uv Python 2026'
+      );
+    }
+    if (text.includes('alphagenome') || text.includes('encode') || text.includes('biosequence') || text.includes('variant effect')) {
+      return this.recordHabit(
+        projectId,
+        sessionId,
+        'Scientific Foundation Model Invariant',
+        'Ground all genomic variant scoring and cis-regulatory element annotations using AlphaGenome and ENCODE SCREEN oracles.',
+        'Scientific Oracle: AlphaGenome & ENCODE 2026'
+      );
+    }
     return null;
   }
 
@@ -82,7 +124,6 @@ export class DeveloperHabitService {
     directive: string,
     title: string
   ): DetectedHabit {
-    // Check if habit already recorded to avoid duplicate flood
     const existing = FtsMemoryService.searchMemories(title, { projectId, limit: 1 });
     if (existing.length === 0) {
       FtsMemoryService.recordMemory({

@@ -8,7 +8,7 @@ import fs from 'node:fs';
 export interface DependencyAuditArgs {
   targetDir?: string;
   ecosystem?: 'auto' | 'node' | 'python';
-  scanTypes?: Array<'vulnerabilities' | 'outdated' | 'licenses'>;
+  scanTypes?: Array<'vulnerabilities' | 'outdated' | 'licenses' | 'freshness2026'>;
   saveReport?: boolean;
 }
 
@@ -43,7 +43,7 @@ export class DependencyAuditTool extends BaseTool<DependencyAuditArgs, string> {
       .optional()
       .describe('Target dependency ecosystem to scan (default: auto-detect)'),
     scanTypes: z
-      .array(z.enum(['vulnerabilities', 'outdated', 'licenses']))
+      .array(z.enum(['vulnerabilities', 'outdated', 'licenses', 'freshness2026']))
       .optional()
       .describe('Types of dependency checks to perform (default: all)'),
     saveReport: z.boolean().optional().describe('Whether to save a markdown report to .agent/audits/ (default: false)'),
@@ -51,7 +51,7 @@ export class DependencyAuditTool extends BaseTool<DependencyAuditArgs, string> {
 
   async execute(args: DependencyAuditArgs, context: ToolExecutionContext): Promise<string> {
     const cwd = path.resolve(context.cwd || process.cwd(), args.targetDir || '.');
-    const scanTypes = args.scanTypes || ['vulnerabilities', 'outdated', 'licenses'];
+    const scanTypes = args.scanTypes || ['vulnerabilities', 'outdated', 'licenses', 'freshness2026'];
     const ecosystem = this.detectEcosystem(cwd, args.ecosystem || 'auto');
 
     if (context.onProgress) {
@@ -68,6 +68,10 @@ export class DependencyAuditTool extends BaseTool<DependencyAuditArgs, string> {
 
       if (ecosystem === 'python' || ecosystem === 'both') {
         await this.auditPythonDependencies(cwd, scanTypes, findings, summaryNotes);
+      }
+
+      if (scanTypes.includes('freshness2026')) {
+        this.auditFreshness2026(cwd, ecosystem, findings, summaryNotes);
       }
 
       if (ecosystem === 'unknown') {
@@ -144,6 +148,83 @@ export class DependencyAuditTool extends BaseTool<DependencyAuditArgs, string> {
     if (scanTypes.includes('outdated')) {
       const pipOutdatedResult = await this.executeCommand('pip list --outdated --format=json', cwd);
       this.parsePipOutdated(pipOutdatedResult, findings);
+    }
+  }
+
+  /**
+   * Audits ecosystem against 2026 standards (Node 22+, ESM, uv, PyTorch 2.4+)
+   */
+  private auditFreshness2026(
+    cwd: string,
+    ecosystem: string,
+    findings: AuditFinding[],
+    summaryNotes: string[]
+  ): void {
+    summaryNotes.push('Freshness: Auditing against 2026 modern technology standards.');
+    if (ecosystem === 'node' || ecosystem === 'both') {
+      this.auditNodeFreshness2026(cwd, findings, summaryNotes);
+    }
+    if (ecosystem === 'python' || ecosystem === 'both') {
+      this.auditPythonFreshness2026(cwd, findings, summaryNotes);
+    }
+  }
+
+  private auditNodeFreshness2026(cwd: string, findings: AuditFinding[], summaryNotes: string[]): void {
+    const pkgPath = path.join(cwd, 'package.json');
+    if (!fs.existsSync(pkgPath)) return;
+    try {
+      const content = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+      if (content.type !== 'module') {
+        findings.push({
+          severity: 'Medium',
+          package: 'package.json#type',
+          recommendation: 'Configure "type": "module" in package.json to adopt standard 2026 ESM packaging.',
+        });
+      }
+      const allDeps = { ...(content.dependencies || {}), ...(content.devDependencies || {}) };
+      const legacyMap: Record<string, string> = {
+        request: 'Package "request" is deprecated. Use native global fetch in Node 22+.',
+        'node-fetch': 'Package "node-fetch" is redundant. Node 18+/22+ provides native fetch.',
+        moment: 'Package "moment" is in maintenance mode. Prefer standard Intl/Temporal or date-fns.',
+      };
+      for (const [dep, advice] of Object.entries(legacyMap)) {
+        if (allDeps[dep]) {
+          findings.push({
+            severity: 'Low',
+            package: dep,
+            recommendation: advice,
+          });
+        }
+      }
+    } catch {
+      // Ignore parse failure on malformed json
+    }
+  }
+
+  private auditPythonFreshness2026(cwd: string, findings: AuditFinding[], summaryNotes: string[]): void {
+    const hasPyproject = fs.existsSync(path.join(cwd, 'pyproject.toml'));
+    const hasSetupPy = fs.existsSync(path.join(cwd, 'setup.py'));
+    if (hasSetupPy && !hasPyproject) {
+      findings.push({
+        severity: 'Medium',
+        package: 'setup.py',
+        recommendation: 'Migrate legacy setup.py to pyproject.toml with uv for modern 2026 packaging.',
+      });
+    }
+    const reqPath = path.join(cwd, 'requirements.txt');
+    if (fs.existsSync(reqPath)) {
+      try {
+        const text = fs.readFileSync(reqPath, 'utf-8');
+        if (/torch\s*(==|<|<=)\s*[01]\./.test(text)) {
+          findings.push({
+            severity: 'High',
+            package: 'torch',
+            recommendation: 'Legacy PyTorch (< 2.0) detected. Upgrade to PyTorch 2.4+ for torch.compile and FlashAttention-3.',
+          });
+        }
+      } catch {
+        // Ignore read errors
+      }
     }
   }
 

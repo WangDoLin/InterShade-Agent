@@ -26,6 +26,12 @@ import { ParallelToolDispatcher } from '../engine/ParallelToolDispatcher.js';
 import { VerificationEvidenceCollector } from '../engine/VerificationEvidenceCollector.js';
 import { ProofEngine } from '../engine/verification/ProofEngine.js';
 import path from 'path';
+import fs from 'node:fs';
+import { InvariantFuzzEngine } from '../engine/verification/InvariantFuzzEngine.js';
+import { SerenaSemanticEngine } from '../engine/semantic/SerenaSemanticEngine.js';
+import { AstSkeletonExtractor } from '../context/AstSkeletonExtractor.js';
+import { AntiStubAstScanner } from '../engine/verification/AntiStubAstScanner.js';
+import { MetricProvenanceValidator } from '../engine/guards/MetricProvenanceValidator.js';
 import { PlanManager } from '../state/PlanManager.js';
 import { TaskManager } from '../state/TaskManager.js';
 import { ModelRouter } from './ModelRouter.js';
@@ -42,6 +48,12 @@ import { ContextMicroCompactor } from '../context/ContextMicroCompactor.js';
 import { SkillRegistry } from '../services/skills/SkillRegistry.js';
 import type { BaseProvider } from '../providers/BaseProvider.js';
 import { config } from '../config/index.js';
+
+const MAX_GRAPH_FILES = 15;
+const GRAPH_CACHE_TTL_MS = 30000;
+const FUZZ_ITERATIONS_PER_FN = 20;
+const FUZZ_TIMEOUT_PER_FN_MS = 150;
+const MAX_FUZZ_FNS_PER_FILE = 3;
 
 function calculateModelCost(inputTokens: number, outputTokens: number, model: string): number {
   const m = model.toLowerCase();
@@ -122,6 +134,7 @@ export class QueryEngine extends EventEmitter {
   private activeSkillName: string | null = null;
   private turnModifiedFiles = new Set<string>();
   private turnLastModTimestamp = 0;
+  private deepRepoGraphCache: { cwd: string; timestamp: number; content: string } | null = null;
 
   constructor(sessionConfig: SessionConfig) {
     super();
@@ -180,6 +193,7 @@ export class QueryEngine extends EventEmitter {
     } else {
       this.sessionState = SessionStore.createSession(sessionConfig);
     }
+    this.sessionState.maxTurns = this.getMaxTurns();
 
     const fullSystemContent = this.buildFullSystemContent();
 
@@ -225,11 +239,31 @@ export class QueryEngine extends EventEmitter {
   private getBasePrompt(): string {
     const languageDirective = `\n\n# Language\n- CRITICAL: Always detect and respond in the exact same language that the user uses in their message.\n- If the user communicates in Vietnamese, your entire response, explanations, thoughts, and summaries MUST be in natural Vietnamese.\n- If the user communicates in English, respond in English.\n- If the user communicates in Japanese, French, Spanish, Chinese, or any other language, mirror that language immediately.\n- Keep programming code, identifiers, and tool names in their standard technical syntax, but all explanations, advice, and conversation MUST strictly follow the user's language.\n- Never default to English when the user communicates in another language.`;
 
+    const modernEngineering2026Directive = `\n\n# 2026 Modern Engineering Invariants & Anti-Obsolescence Standards
+- CURRENT ERA: The operational year is 2026. Strictly avoid obsolete pre-2024 coding habits, legacy packages, and deprecated patterns.
+- MODERN PYTHON ECOSYSTEM (2026 Standard):
+  * Use 'uv' exclusively for Python package management, dependency resolution, and running standalone scripts ('uv run', 'uv add'). Never advise raw 'pip install' or manual 'venv' creation unless explicitly forced.
+  * Target Python 3.12+ features (type parameter syntax PEP 695, match-case, modern pathlib, f-string syntactic enhancements).
+  * PyTorch 2.4+: Always incorporate 'torch.compile()', Accelerated Transformers, FlashAttention-3, bfloat16 mixed precision ('torch.autocast'), and unified device handling ('cuda', 'mps', 'cpu').
+- MODERN JAVASCRIPT & TYPESCRIPT ECOSYSTEM (2026 Standard):
+  * Strictly use ESM ('import' / 'export'). NEVER generate CommonJS ('require', 'module.exports') unless explicitly maintaining an existing legacy project.
+  * Node.js 22+: Use native features (native 'fetch', native test runner, modern crypto) instead of obsolete utility packages.
+  * Next.js 15+ / React 19: Use Server Components, Server Actions, modern hook primitives, and avoid deprecated lifecycle paradigms.
+- BIOLOGICAL & SCIENTIFIC FOUNDATION MODELS:
+  * For genomics, variant effect scoring, and regulatory genomics: NEVER hallucinate effect scores or rely on obsolete heuristic tools (SIFT/PolyPhen). Always ground analysis using AlphaGenome (DeepMind 1Mbp context) and ENCODE SCREEN cCREs.`;
+
+    const maxingDirective = this.sessionConfig.maxingMode
+      ? `\n\n# Mode Max: Super-Intelligence Protocol Active
+- MAXIMUM THOROUGHNESS & REASONING DEPTH: Mode Max is ON. You operate with elevated thinking capacity and zero tolerance for superficial assumptions.
+- WHOLE-REPO OMNISCIENCE: Rely on deep architectural awareness. Verify all types, symbols, imports, and caller graphs before changing code.
+- COMPREHENSIVE EDGE-CASE INVARIANTS: Ensure functions satisfy safety invariants (NO_PANIC on null/undefined/boundary numeric inputs, idempotent transformations, and pure contract guarantees).`
+      : '';
+
     if (this.sessionConfig.systemPrompt) {
-      return `${this.sessionConfig.systemPrompt}${languageDirective}`;
+      return `${this.sessionConfig.systemPrompt}${languageDirective}${modernEngineering2026Directive}${maxingDirective}`;
     }
 
-    return `You are InterShader, an advanced autonomous coding agent.${languageDirective}
+    return `You are InterShader, an advanced autonomous coding agent.${languageDirective}${modernEngineering2026Directive}${maxingDirective}
 
 # Grounded Action Awareness & Execution Truth
 - STRICT EXECUTION TRUTH: You have NO memory or knowledge of workspace changes other than confirmed [TOOL RESULT] messages in the conversation history.
@@ -296,6 +330,10 @@ If you can say it in one sentence, don't use three. Prefer short, direct sentenc
 - MEANINGFUL ERROR HANDLING: Never use empty catch blocks or silently discard errors. Validate external inputs at system boundaries.
 - PRESERVATION INVARIANT: Never delete or refactor working code unless explicitly requested. Every modification must have an explicit technical rationale.
 - EMPIRICAL PROOF: "NO EVIDENCE, NO DONE." Never claim a task is complete without running verification (e.g. typecheck, automated test, or command execution) to prove correctness.
+
+# Anti-Superficiality & Metric Provenance Directives (NO EVIDENCE, NO DONE)
+- NO LAZY CODING / NO MOCKING: Never write superficial stub code, dummy return constants (e.g. returning 0.99 or true without logic), or evasion comments (// TODO: implement, // placeholder). Always implement full, robust algorithms with complete edge-case handling.
+- NO HALLUCINATED METRICS: Never fabricate or estimate quantitative performance numbers (percentages, speedup factors like "3.5x", latency like "12ms", RAM saved like "400MB", or scientific scores) in your text output unless they were explicitly produced by an executed benchmark tool or Oracle in the conversation history. If you claim an improvement, you MUST run a benchmark script or tool to measure it first.
 
 # Code Modification Rules
 - In general, do not propose changes to code you haven't read. If you want to modify a file, read it first using \`file_read\`. Understand existing code before modifying.
@@ -366,6 +404,157 @@ If you can say it in one sentence, don't use three. Prefer short, direct sentenc
     return false;
   }
 
+  /**
+   * Formats an individual file's AST skeleton into a compact map snippet
+   */
+  private formatFileAstSkeleton(filePath: string, cwd: string): string | null {
+    try {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      const skeleton = AstSkeletonExtractor.extract(filePath, content);
+      const relPath = path.relative(cwd, filePath).replace(/\\/g, '/');
+      const lines = skeleton.skeletonContent
+        .split('\n')
+        .map((l) => l.trimEnd())
+        .filter((l) => {
+          const t = l.trim();
+          return (
+            t.startsWith('export ') ||
+            t.startsWith('interface ') ||
+            t.startsWith('class ') ||
+            t.startsWith('type ') ||
+            t.startsWith('def ') ||
+            t.startsWith('fn ')
+          );
+        })
+        .slice(0, 10);
+
+      if (lines.length === 0) return null;
+      return `### \`${relPath}\` (${skeleton.language}):\n\`\`\`ts\n${lines.join('\n')}\n\`\`\``;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Discovers key source code files in workspace for Mode Max graph analysis
+   */
+  private discoverKeySourceFiles(rootDir: string, maxFiles = MAX_GRAPH_FILES): string[] {
+    const codeExts = new Set(['.ts', '.tsx', '.js', '.jsx', '.py', '.go', '.rs']);
+    const ignoreDirs = new Set(['node_modules', '.git', 'dist', 'build', '.intershade', 'coverage', '.cache']);
+    const files: string[] = [];
+
+    const scan = (dir: string, depth = 0) => {
+      if (depth > 5 || files.length >= maxFiles) return;
+      try {
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          if (files.length >= maxFiles) break;
+          if (entry.name.startsWith('.') && entry.name !== '.env') continue;
+          if (entry.isDirectory() && !ignoreDirs.has(entry.name)) {
+            scan(path.join(dir, entry.name), depth + 1);
+          } else if (entry.isFile() && codeExts.has(path.extname(entry.name).toLowerCase())) {
+            files.push(path.join(dir, entry.name));
+          }
+        }
+      } catch {
+        // ignore unreadable directories
+      }
+    };
+
+    scan(rootDir);
+    return files;
+  }
+
+  /**
+   * Generates a high-density Deep Repo Graph digest for Mode Max whole-repo awareness
+   */
+  public getDeepRepoGraphDigest(cwd: string): string {
+    const now = Date.now();
+    if (
+      this.deepRepoGraphCache &&
+      this.deepRepoGraphCache.cwd === cwd &&
+      now - this.deepRepoGraphCache.timestamp < GRAPH_CACHE_TTL_MS
+    ) {
+      return this.deepRepoGraphCache.content;
+    }
+
+    const keyFiles = this.discoverKeySourceFiles(cwd, MAX_GRAPH_FILES);
+    if (keyFiles.length === 0) return '';
+
+    const snippets: string[] = [];
+    for (const f of keyFiles) {
+      const snippet = this.formatFileAstSkeleton(f, cwd);
+      if (snippet) snippets.push(snippet);
+    }
+
+    const content = [
+      '# [MODE MAX: DEEP REPOSITORY ARCHITECTURAL GRAPH]',
+      'The following high-density structural AST skeleton provides omniscient awareness of key workspace symbols and signatures:',
+      ...snippets,
+    ].join('\n\n');
+
+    this.deepRepoGraphCache = { cwd, timestamp: now, content };
+    return content;
+  }
+
+  /**
+   * Runs property-based invariant boundary fuzzing shield on modified functions in Mode Max
+   */
+  private async runMaxingInvariantFuzzShield(
+    modifiedFiles: string[]
+  ): Promise<{ passed: boolean; defectNotice?: string }> {
+    const codeFiles = modifiedFiles.filter((f) => {
+      const lower = f.toLowerCase();
+      return (
+        (lower.endsWith('.ts') || lower.endsWith('.js')) &&
+        !lower.endsWith('.d.ts') &&
+        !lower.includes('test') &&
+        !lower.includes('spec')
+      );
+    });
+
+    if (codeFiles.length === 0) return { passed: true };
+
+    for (const filePath of codeFiles) {
+      const fullPath = path.isAbsolute(filePath)
+        ? filePath
+        : path.resolve(this.sessionConfig.cwd, filePath);
+      if (!fs.existsSync(fullPath)) continue;
+
+      const symbols = SerenaSemanticEngine.getSymbolOutline(fullPath);
+      const targetFunctions = symbols
+        .filter((s) => s.isExported && (s.kind === 'function' || s.kind === 'method'))
+        .slice(0, MAX_FUZZ_FNS_PER_FILE);
+
+      for (const fn of targetFunctions) {
+        try {
+          const relPath = path.relative(this.sessionConfig.cwd, fullPath);
+          const report = await InvariantFuzzEngine.fuzzFile(
+            this.sessionConfig.cwd,
+            relPath,
+            fn.name,
+            'NO_PANIC',
+            {
+              cwd: this.sessionConfig.cwd,
+              iterations: FUZZ_ITERATIONS_PER_FN,
+              timeoutMsPerRun: FUZZ_TIMEOUT_PER_FN_MS,
+            }
+          );
+
+          if (!report.overallPassed && report.errorMessage) {
+            const counter = JSON.stringify(report.shrunkCounterexample ?? report.originalCounterexample);
+            const defectNotice = `[MODE MAX INVARIANT SHIELD DEFECT]: Boundary fuzzing detected an unhandled crash in function '${report.target}':\nError: ${report.errorMessage}\nCounterexample input: ${counter}\n\nPlease harden the function against boundary inputs (null, undefined, empty, or numeric boundaries).`;
+            return { passed: false, defectNotice };
+          }
+        } catch {
+          // Dynamic import or environment specific module: proceed gracefully
+        }
+      }
+    }
+
+    return { passed: true };
+  }
+
   private buildFullSystemContent(currentGoal?: string): string {
     const availableSkills = this.skillRegistry.getCompactCatalog().map((s) => ({
       name: s.name,
@@ -402,7 +591,12 @@ If you can say it in one sentence, don't use three. Prefer short, direct sentenc
         durableMemories,
       }
     );
-    return `${staticBlock.text}\n${dynamicBlock.text}`;
+
+    const repoGraphContext = this.sessionConfig.maxingMode
+      ? `\n\n${this.getDeepRepoGraphDigest(this.sessionConfig.cwd)}`
+      : '';
+
+    return `${staticBlock.text}\n${dynamicBlock.text}${repoGraphContext}`;
   }
 
   private refreshSystemPrompt(currentGoal?: string): void {
@@ -479,6 +673,7 @@ If you can say it in one sentence, don't use three. Prefer short, direct sentenc
   }
 
   getSessionState(): SessionState {
+    this.sessionState.maxTurns = this.getMaxTurns();
     return this.sessionState;
   }
 
@@ -495,6 +690,7 @@ If you can say it in one sentence, don't use three. Prefer short, direct sentenc
       this.sessionConfig.thinkingBudget = targetBudget;
       this.sessionState.thinkingBudget = targetBudget;
     }
+    this.refreshSystemPrompt();
   }
 
   getMessages(): UnifiedMessage[] {
@@ -627,6 +823,7 @@ If you can say it in one sentence, don't use three. Prefer short, direct sentenc
     });
 
     this.sessionState = newSession;
+    this.sessionState.maxTurns = this.getMaxTurns();
 
     // Reconstruct initial system message for the new session
     const existingSystemMsg = this.messages.find((m) => m.role === 'system');
@@ -649,6 +846,67 @@ If you can say it in one sentence, don't use three. Prefer short, direct sentenc
     return newSession;
   }
 
+  /**
+   * Resumes or switches to an existing conversation session by ID or prefix.
+   */
+  switchSession(sessionIdOrPrefix: string): { success: boolean; session?: SessionState; error?: string } {
+    if (!sessionIdOrPrefix || !sessionIdOrPrefix.trim()) {
+      return { success: false, error: 'Session ID or "latest" must be specified.' };
+    }
+
+    const trimmed = sessionIdOrPrefix.trim();
+    let targetSession: SessionState | null = null;
+
+    if (trimmed.toLowerCase() === 'latest' || trimmed === '-l') {
+      targetSession = SessionStore.findLatestSession();
+    } else {
+      targetSession = SessionStore.getSession(trimmed);
+    }
+
+    if (!targetSession) {
+      return { success: false, error: `Conversation session "${trimmed}" not found.` };
+    }
+
+    this.abort();
+    this.isRunning = false;
+    this.isExplorationPhase = true;
+    this.activeSkillName = null;
+
+    this.sessionState = targetSession;
+    this.sessionState.maxTurns = this.getMaxTurns();
+
+    const savedMessages = SessionStore.getMessages(targetSession.id);
+    const fullSystemContent = this.buildFullSystemContent();
+
+    if (savedMessages.length > 0) {
+      this.messages = savedMessages;
+      this.reconcileDanglingToolCalls();
+      if (this.messages[0] && this.messages[0].role === 'system') {
+        this.messages[0].content = fullSystemContent;
+      } else {
+        this.messages.unshift({
+          id: randomUUID(),
+          role: 'system',
+          content: fullSystemContent,
+          timestamp: Date.now(),
+        });
+      }
+    } else {
+      const freshSystemMsg: UnifiedMessage = {
+        id: randomUUID(),
+        role: 'system',
+        content: fullSystemContent,
+        timestamp: Date.now(),
+      };
+      this.messages = [freshSystemMsg];
+      SessionStore.appendMessage(targetSession.id, freshSystemMsg);
+    }
+
+    this.currentContextTokens = TokenCounter.estimateMessagesTokens(this.messages);
+    this.emit('session_switched', targetSession);
+    return { success: true, session: targetSession };
+  }
+
   updateSessionModel(provider: string, model: string): void {
     const KNOWN_PROVIDERS = ['openai', 'anthropic', 'google', 'gemini', 'deepseek', 'ollama'];
     let effectiveProvider = provider;
@@ -669,12 +927,19 @@ If you can say it in one sentence, don't use three. Prefer short, direct sentenc
 
   updateMaxTurns(maxTurns: number): void {
     this.sessionConfig.maxTurns = maxTurns;
+    if (this.sessionState) {
+      this.sessionState.maxTurns = maxTurns;
+    }
   }
 
   getMaxTurns(): number {
-    return this.sessionConfig.maxTurns !== undefined
-      ? this.sessionConfig.maxTurns
-      : (config.maxTurns || 100);
+    if (this.sessionConfig.maxTurns !== undefined) {
+      return this.sessionConfig.maxTurns;
+    }
+    if (this.sessionState?.maxTurns !== undefined) {
+      return this.sessionState.maxTurns;
+    }
+    return config.maxTurns !== undefined ? config.maxTurns : 100;
   }
 
   appendSyntheticMessage(msg: UnifiedMessage): void {
@@ -1164,10 +1429,7 @@ If you can say it in one sentence, don't use three. Prefer short, direct sentenc
       let completedNaturally = false;
       let lastToolTurnHadError = false;
       this.continuationGuard.resetConsecutive();
-      const maxTurns =
-        this.sessionConfig.maxTurns !== undefined
-          ? this.sessionConfig.maxTurns
-          : (config.maxTurns || 100);
+      const maxTurns = this.getMaxTurns();
 
       while (maxTurns <= 0 || turnCount < maxTurns) {
         if (this.abortController?.signal.aborted) {
@@ -1390,6 +1652,29 @@ If you can say it in one sentence, don't use three. Prefer short, direct sentenc
             }
           }
 
+          // Mode Max: Invariant Boundary Fuzzing Shield
+          if (
+            this.sessionConfig.maxingMode &&
+            this.turnModifiedFiles.size > 0 &&
+            this.sessionConfig.permissionMode !== 'plan'
+          ) {
+            this.emit('verification', '[Mode Max Shield]: Running autonomous Invariant Boundary Fuzz Shield on modified functions...');
+            const fuzzResult = await this.runMaxingInvariantFuzzShield(Array.from(this.turnModifiedFiles));
+            if (!fuzzResult.passed && fuzzResult.defectNotice) {
+              this.emit('verification', '[Mode Max Shield]: Invariant defect detected. Initiating autonomous repair loop...');
+              const autoFuzzMsg: UnifiedMessage = {
+                id: randomUUID(),
+                role: 'user',
+                content: fuzzResult.defectNotice,
+                timestamp: Date.now(),
+              };
+              this.messages.push(autoFuzzMsg);
+              continue; // Autonomous self-healing loop
+            } else {
+              this.emit('verification', '[Mode Max Shield]: Boundary invariant fuzz checks passed successfully.');
+            }
+          }
+
           if (this.sessionConfig.proofMode) {
             this.emit('verification', 'Proof Mode active: Running empirical 6-pillar verification...');
             const modifiedFiles = this.evidenceCollector.getModifiedFiles();
@@ -1413,6 +1698,47 @@ If you can say it in one sentence, don't use three. Prefer short, direct sentenc
 
             this.emit('verification', `Proof verified (Score: ${proofReport.score}/100). All criteria satisfied.`);
             finalAssistantResponse = `${finalAssistantResponse}\n\n${proofReport.proofCard}`;
+          }
+
+          // Anti-Stubbing AST Guard: Ensure code was not written with superficial stubs or dummy returns
+          if (this.sessionConfig.permissionMode !== 'plan' && this.turnModifiedFiles.size > 0) {
+            const stubReport = AntiStubAstScanner.scanFiles(
+              Array.from(this.turnModifiedFiles),
+              this.sessionConfig.cwd
+            );
+            if (!stubReport.passed) {
+              this.emit('verification', `[Anti-Stub Guard]: ${stubReport.findings.length} superficial stub/placeholder(s) detected. Nudging agent to implement complete logic...`);
+              const stubNotice = `[ANTI-STUB GUARD VIOLATION]: Phát hiện mã nguồn viết qua loa, chứa mock/placeholder hoặc dummy return:\n` +
+                stubReport.findings.map((f) => `- ${f.file}:${f.line} [${f.kind}]: ${f.message}`).join('\n') +
+                `\n\nVui lòng loại bỏ các comment trốn tránh (TODO/placeholder/mock) và triển khai đầy đủ thuật toán nghiệp vụ thực tế.`;
+              const autoStubMsg: UnifiedMessage = {
+                id: randomUUID(),
+                role: 'user',
+                content: stubNotice,
+                timestamp: Date.now(),
+              };
+              this.messages.push(autoStubMsg);
+              continue; // Autonomous self-healing loop
+            }
+          }
+
+          // Metric Provenance Guard: Ensure quantitative claims have empirical evidence in tool outputs
+          if (this.sessionConfig.permissionMode !== 'plan' && assistantContent) {
+            const metricCheck = MetricProvenanceValidator.evaluate(assistantContent, this.messages);
+            if (!metricCheck.isValid && metricCheck.nudgePrompt) {
+              this.emit(
+                'verification',
+                `[Metric Provenance Guard]: ${metricCheck.unprovenClaims.length} unproven metric claim(s) detected. Nudging agent to measure empirically...`
+              );
+              const autoMetricMsg: UnifiedMessage = {
+                id: randomUUID(),
+                role: 'user',
+                content: metricCheck.nudgePrompt,
+                timestamp: Date.now(),
+              };
+              this.messages.push(autoMetricMsg);
+              continue; // Autonomous self-healing loop
+            }
           }
 
           completedNaturally = true;

@@ -203,4 +203,24 @@ export class EncodeCcresTool extends BaseTool<EncodeCcresArgs, string> {
 
     return '[ENCODE ERROR]: Unsupported action.';
   }
+
+  /**
+   * Generates structured grounding context for SCREEN cis-regulatory element annotations
+   */
+  static formatCcreGroundingSummary(
+    accession: string,
+    payload: { group?: string; nearbyGenes?: string[]; biosamples?: string[] }
+  ): string {
+    const lines = [
+      `### [ENCODE SCREEN cCRE Grounding]: ${accession}`,
+      `- Functional Group: ${payload.group || 'Candidate cis-Regulatory Element'}`,
+    ];
+    if (payload.nearbyGenes && payload.nearbyGenes.length > 0) {
+      lines.push(`- Regulated Nearby Genes: ${payload.nearbyGenes.join(', ')}`);
+    }
+    if (payload.biosamples && payload.biosamples.length > 0) {
+      lines.push(`- Active Biosamples: ${payload.biosamples.slice(0, 5).join(', ')}`);
+    }
+    return lines.join('\n');
+  }
 }

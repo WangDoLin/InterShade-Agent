@@ -164,4 +164,25 @@ export class AlphaGenomeTool extends BaseTool<AlphaGenomeArgs, string> {
     }
     return null;
   }
+
+  /**
+   * Generates structured grounding context for Gemini 3.8 to eliminate hallucination in biology
+   */
+  static formatGroundingSummary(
+    variant: string,
+    payload: { effectScore?: number; tracks?: string[]; interpretation?: string }
+  ): string {
+    const lines = [
+      `### [AlphaGenome Empirical Grounding]: ${variant}`,
+      `- Context Window: 1Mbp regulatory field (DeepMind AlphaGenome)`,
+      `- Biological Interpretation: ${payload.interpretation || 'Non-coding variant analyzed across chromatin, transcription & splicing.'}`,
+    ];
+    if (payload.effectScore !== undefined) {
+      lines.push(`- Variant Effect Delta: ${payload.effectScore}`);
+    }
+    if (payload.tracks && payload.tracks.length > 0) {
+      lines.push(`- Affected Functional Tracks: ${payload.tracks.join(', ')}`);
+    }
+    return lines.join('\n');
+  }
 }

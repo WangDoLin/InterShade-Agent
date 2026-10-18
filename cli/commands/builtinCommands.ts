@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { getDatabase } from '../../state/Database.js';
+import { SessionStore } from '../../state/SessionStore.js';
 import { FtsMemoryService } from '../../services/memory/FtsMemoryService.js';
 import { SkillCrystallizer } from '../../services/skills/SkillCrystallizer.js';
 import { SkillRegistry } from '../../services/skills/SkillRegistry.js';
@@ -28,6 +29,7 @@ import { RepoMapTool } from '../../tools/context/RepoMapTool.js';
 import { TaskManager } from '../../state/TaskManager.js';
 import { SerenaSemanticEngine } from '../../engine/semantic/SerenaSemanticEngine.js';
 import { TaskScheduler } from '../../services/scheduler/TaskScheduler.js';
+import { InvariantFuzzEngine, type InvariantType } from '../../engine/verification/InvariantFuzzEngine.js';
 
 
 export const reviewCommand: PromptCommand = {
@@ -86,10 +88,47 @@ export const diffCommand: LocalCommand = {
 
 export const statsCommand: LocalCommand = {
   name: 'stats',
-  description: 'Display session token usage statistics',
+  description: 'Display session token usage statistics (usage: /stats [all|<sessionId>])',
   type: 'local',
   aliases: ['tokens', 'usage'],
   execute: (ctx) => {
+    const rawArg = ctx.args[0]?.trim();
+    const isAll = rawArg === 'all' || rawArg === 'total' || rawArg === '-a' || rawArg === '--all';
+
+    // /stats all -> View total tokens across all sessions
+    if (isAll) {
+      const summary = SessionStore.getTotalUsage();
+      return [
+        'Total Historical Token Statistics',
+        `Total Sessions Stored: ${summary.totalSessions.toLocaleString()}`,
+        `Active Usage Sessions: ${summary.activeSessions.toLocaleString()}`,
+        `Input Tokens:  ${summary.totalInputTokens.toLocaleString()}`,
+        `Output Tokens: ${summary.totalOutputTokens.toLocaleString()}`,
+        `Total Tokens:  ${summary.totalTokens.toLocaleString()}`,
+        `Total Cost:    $${summary.totalCostUsd.toFixed(4)} USD`,
+      ].join('\n');
+    }
+
+    // /stats <sessionId> -> View tokens of specific session if valid session requested
+    const looksLikePath = rawArg && (rawArg.includes('/') || rawArg.includes('\\') || rawArg.endsWith('.ts') || rawArg.endsWith('.js'));
+    const isExplicitSession = rawArg && rawArg !== 'current' && !looksLikePath;
+    if (isExplicitSession) {
+      const target = SessionStore.getSession(rawArg);
+      if (target) {
+        const total = target.totalInputTokens + target.totalOutputTokens;
+        return [
+          `Session Token Usage [${target.id.slice(0, 8)}]`,
+          `Input Tokens:  ${target.totalInputTokens.toLocaleString()}`,
+          `Output Tokens: ${target.totalOutputTokens.toLocaleString()}`,
+          `Total Tokens:  ${total.toLocaleString()}`,
+          `Total Cost:    $${target.totalCostUsd.toFixed(4)} USD`,
+        ].join('\n');
+      } else if (rawArg.length >= 8 || rawArg.includes('-')) {
+        return `Session "${rawArg}" not found in database. Use "/stats all" or "/sessions" to list conversations.`;
+      }
+    }
+
+    // Default: current session
     const st = ctx.sessionState as Record<string, unknown>;
     const input = Number(st.totalInputTokens || 0);
     const output = Number(st.totalOutputTokens || 0);
@@ -99,20 +138,84 @@ export const statsCommand: LocalCommand = {
       `Input Tokens:  ${input.toLocaleString()}`,
       `Output Tokens: ${output.toLocaleString()}`,
       `Total Tokens:  ${total.toLocaleString()}`,
+      '',
+      'Tip: Use "/stats all" to see tokens across all conversations, or "/stats <id>" for a specific session.',
     ].join('\n');
   }
 };
 
 export const costCommand: LocalCommand = {
   name: 'cost',
-  description: 'Display estimated session cost',
+  description: 'Display estimated token consumption cost (usage: /cost [all|<sessionId>])',
   type: 'local',
+  aliases: ['pricing', 'billing'],
   execute: (ctx) => {
+    const rawArg = ctx.args[0]?.trim();
+    const isAll = rawArg === 'all' || rawArg === 'total' || rawArg === '-a' || rawArg === '--all';
+
+    // /cost all -> Summary across all sessions
+    if (isAll) {
+      const summary = SessionStore.getTotalUsage();
+      const recent = SessionStore.listSessions(10).filter((s) => s.totalInputTokens + s.totalOutputTokens > 0);
+      const lines: string[] = [
+        'Total Historical Cost & Token Summary',
+        `Total Sessions Stored:  ${summary.totalSessions.toLocaleString()}`,
+        `Active Usage Sessions:  ${summary.activeSessions.toLocaleString()}`,
+        `Total Input Tokens:     ${summary.totalInputTokens.toLocaleString()}`,
+        `Total Output Tokens:    ${summary.totalOutputTokens.toLocaleString()}`,
+        `Total Tokens:           ${summary.totalTokens.toLocaleString()}`,
+        `Total Estimated Cost:   $${summary.totalCostUsd.toFixed(4)} USD`,
+        '',
+        'Recent active conversations:',
+      ];
+      for (const s of recent.slice(0, 5)) {
+        const timeStr = new Date(s.updatedAt).toLocaleString();
+        const tot = s.totalInputTokens + s.totalOutputTokens;
+        lines.push(`- [${s.id.slice(0, 8)}] ${s.model}: ${tot.toLocaleString()} tokens ($${s.totalCostUsd.toFixed(4)}) | ${timeStr}`);
+      }
+      lines.push('\nTip: Use "/cost <id>" to check cost for a specific conversation.');
+      return lines.join('\n');
+    }
+
+    // /cost <sessionId> -> Specific session cost if valid session requested
+    const looksLikePath = rawArg && (rawArg.includes('/') || rawArg.includes('\\') || rawArg.endsWith('.ts') || rawArg.endsWith('.js'));
+    const isExplicitSession = rawArg && rawArg !== 'current' && !looksLikePath;
+    if (isExplicitSession) {
+      const target = SessionStore.getSession(rawArg);
+      if (target) {
+        const total = target.totalInputTokens + target.totalOutputTokens;
+        const timeStr = new Date(target.updatedAt).toLocaleString();
+        return [
+          `Session Cost [${target.id.slice(0, 8)}]`,
+          `Model:          ${target.model} (${target.provider})`,
+          `Updated:        ${timeStr}`,
+          `Input Tokens:   ${target.totalInputTokens.toLocaleString()}`,
+          `Output Tokens:  ${target.totalOutputTokens.toLocaleString()}`,
+          `Total Tokens:   ${total.toLocaleString()}`,
+          `Estimated Session Cost: $${target.totalCostUsd.toFixed(4)} USD`,
+        ].join('\n');
+      } else if (rawArg.length >= 8 || rawArg.includes('-')) {
+        return `Session "${rawArg}" not found in database. Use "/cost all" or "/sessions" to list conversations.`;
+      }
+    }
+
+    // Default: current session
     const st = ctx.sessionState as Record<string, unknown>;
     const input = Number(st.totalInputTokens || 0);
     const output = Number(st.totalOutputTokens || 0);
-    const cost = (input / 1_000_000) * 3.0 + (output / 1_000_000) * 15.0;
-    return `Estimated Session Cost: $${cost.toFixed(4)} USD`;
+    const recordedCost = Number(st.totalCostUsd);
+    const cost = !isNaN(recordedCost) && recordedCost > 0
+      ? recordedCost
+      : (input / 1_000_000) * 3.0 + (output / 1_000_000) * 15.0;
+
+    return [
+      `Estimated Session Cost: $${cost.toFixed(4)} USD`,
+      `Input Tokens:  ${input.toLocaleString()}`,
+      `Output Tokens: ${output.toLocaleString()}`,
+      `Total Tokens:  ${(input + output).toLocaleString()}`,
+      '',
+      'Tips: Use "/cost all" to see all conversations, or "/cost <id>" for a specific session.',
+    ].join('\n');
   }
 };
 
@@ -647,13 +750,23 @@ export const planCommand: LocalCommand = {
       return '[PLAN RESET]: Active plan cleared from session memory. Ready to establish a new plan.';
     }
 
+    if (arg0 === 'on') {
+      st.permissionMode = 'plan';
+      return '[PLAN MODE ON]: Write tools and shell execution are locked to read-only.';
+    }
+
+    if (arg0 === 'off') {
+      st.permissionMode = 'default';
+      return '[PLAN MODE OFF]: Normal execution mode restored.';
+    }
+
     const targetPath = ctx.args.join(' ').trim();
     const currentMode = st.permissionMode;
     const nextMode = currentMode === 'plan' && !targetPath ? 'default' : 'plan';
     st.permissionMode = nextMode;
     let msg = nextMode === 'plan' ? '[PLAN MODE ON]: Write tools and shell execution are locked to read-only.' : '[PLAN MODE OFF]: Normal execution mode restored.';
     if (targetPath) {
-      msg += `\nTarget Scope: ${targetPath}\nReady for planning. Describe what features or fixes you want to investigate.`;
+      msg += `\nTarget Scope: ${targetPath}\nReady for planning.`;
     }
     const activePlan = PlanManager.getActivePlan(sessionId);
     if (activePlan && nextMode === 'plan') {
@@ -667,24 +780,46 @@ export const turnsCommand: LocalCommand = {
   name: 'turns',
   description: 'View or set the maximum turn limit for agent execution (/turns [number|unlimited])',
   type: 'local',
-  aliases: ['maxturns', 'turnlimit'],
+  aliases: ['turn', 'maxturns', 'turnlimit', 'turn-limit', 'unlimited', 'continuous'],
   execute: (ctx) => {
     const st = ctx.sessionState as Record<string, unknown>;
-    const arg = ctx.args[0]?.toLowerCase();
+    const rawArg = ctx.args.join(' ').toLowerCase().trim();
 
-    if (!arg) {
-      const current = typeof st.maxTurns === 'number' ? st.maxTurns : config.maxTurns;
+    // If no argument provided:
+    if (!rawArg) {
+      const current = typeof st.maxTurns === 'number' ? st.maxTurns : (config.maxTurns !== undefined ? config.maxTurns : 100);
       return current <= 0
         ? 'Current Turn Limit: Unlimited (Continuous execution until task completion)'
         : `Current Turn Limit: ${current} turns per prompt (use /turns <number> or /turns unlimited to change)`;
     }
 
-    if (arg === 'unlimited' || arg === 'inf' || arg === 'infinite' || arg === '0') {
+    const UNLIMITED_KEYWORDS = new Set([
+      'unlimited',
+      'inf',
+      'infinite',
+      '0',
+      'none',
+      'off',
+      'continuous',
+      '-1',
+      'all',
+      'max',
+      'vohan',
+      'vo_han',
+      'vô_hạn',
+      'vô hạn',
+      'vo han',
+      'khong_gioi_han',
+      'không giới hạn',
+      'khong gioi han',
+    ]);
+
+    if (UNLIMITED_KEYWORDS.has(rawArg) || rawArg.startsWith('unlimit') || rawArg.startsWith('vô hạn') || rawArg.startsWith('vo han')) {
       st.maxTurns = 0;
       return 'Turn limit set to: Unlimited (Continuous execution until task completion)';
     }
 
-    const parsed = parseInt(arg, 10);
+    const parsed = parseInt(rawArg, 10);
     if (isNaN(parsed) || parsed < 0) {
       return 'Invalid turn limit. Usage: /turns <number> (e.g. /turns 50, /turns 100) or /turns unlimited';
     }
@@ -893,6 +1028,7 @@ export const statusCommand: LocalCommand = {
 
     const input = Number(st.totalInputTokens || 0);
     const output = Number(st.totalOutputTokens || 0);
+    const turnLimit = typeof st.maxTurns === 'number' ? st.maxTurns : (config.maxTurns !== undefined ? config.maxTurns : 100);
 
     return [
       'InterShader Session Status',
@@ -901,6 +1037,7 @@ export const statusCommand: LocalCommand = {
       `Git Branch:      ${gitBranch}`,
       `Model / Provider:${st.model || 'claude-3-7-sonnet'} (${st.provider || 'anthropic'})`,
       `Permission Mode: ${st.permissionMode || 'default'}`,
+      `Turn Limit:      ${turnLimit <= 0 ? 'Unlimited (Continuous)' : `${turnLimit} turns`}`,
       `Token Counters:  In: ${input.toLocaleString()} | Out: ${output.toLocaleString()}`,
       `Estimated Cost:  $${(((input / 1_000_000) * 3.0) + ((output / 1_000_000) * 15.0)).toFixed(4)} USD`,
     ].join('\n');
@@ -1317,29 +1454,51 @@ export const sessionsCommand: LocalCommand = {
   name: 'sessions',
   description: 'List recent conversation sessions stored in SQLite WAL',
   type: 'local',
+  aliases: ['history'],
   execute: () => {
     try {
-      const db = getDatabase();
-      const rows = db.prepare(`
-        SELECT id, title, model, provider, datetime(created_at/1000, 'unixepoch', 'localtime') as created_time
-        FROM sessions
-        ORDER BY created_at DESC
-        LIMIT 5
-      `).all() as Array<{ id: string; title: string; model: string; provider: string; created_time: string }>;
-
+      const rows = SessionStore.listSessions(10);
       if (rows.length === 0) {
         return 'No stored sessions in database. Use /new to start a new session.';
       }
 
       const lines: string[] = ['Recent Conversation Sessions:'];
       for (const r of rows) {
-        lines.push(`- [${r.id}] ${r.title} | ${r.model} (${r.created_time})`);
+        const timeStr = new Date(r.updatedAt).toLocaleString();
+        const totTokens = r.totalInputTokens + r.totalOutputTokens;
+        lines.push(`- [${r.id.slice(0, 8)}] ${r.title} | ${r.model} | ${totTokens.toLocaleString()} tokens | $${r.totalCostUsd.toFixed(4)} USD`);
+        lines.push(`  ID: ${r.id} (${timeStr})`);
       }
-      lines.push('\nTips: Use /new to start fresh, or /delete to permanently delete current session.');
+      lines.push('\nTips:');
+      lines.push('  - /resume <id> (or /resume latest) to switch to any previous conversation');
+      lines.push('  - /cost all to view total tokens and cost across all sessions');
+      lines.push('  - /new to start fresh, or /delete to permanently remove current session');
       return lines.join('\n');
     } catch {
       return 'Unable to query sessions table from SQLite.';
     }
+  }
+};
+
+export const resumeCommand: LocalCommand = {
+  name: 'resume',
+  description: 'Resume or switch to a previous conversation session (usage: /resume [id|latest])',
+  type: 'local',
+  aliases: ['switch', 'load'],
+  execute: (ctx) => {
+    const targetId = ctx.args[0]?.trim();
+    if (!targetId) {
+      const sessions = SessionStore.listSessions(6);
+      const lines = ['Conversations available to resume:'];
+      for (const s of sessions) {
+        const tot = s.totalInputTokens + s.totalOutputTokens;
+        lines.push(`- [${s.id.slice(0, 8)}] ${s.title} | ${s.model} | ${tot.toLocaleString()} tokens | $${s.totalCostUsd.toFixed(4)} USD`);
+        lines.push(`  ID: ${s.id} (${new Date(s.updatedAt).toLocaleString()})`);
+      }
+      lines.push('\nUsage: /resume <id> or /resume latest');
+      return lines.join('\n');
+    }
+    return `Resuming session ${targetId}...`;
   }
 };
 
@@ -2043,8 +2202,58 @@ export const maxingCommand: LocalCommand = {
   },
 };
 
+export const fuzzCommand: LocalCommand = {
+  name: 'fuzz',
+  description: 'Run autonomous invariant fuzzing & property-based testing on a module or function',
+  type: 'local',
+  aliases: ['pbt', 'fuzzing'],
+  execute: async (ctx) => {
+    const file = ctx.args[0];
+    const fnName = ctx.args[1] || 'default';
+    const iterations = ctx.args[2] ? parseInt(ctx.args[2], 10) : 100;
+    const invariant = (ctx.args[3] as InvariantType) || 'NO_PANIC';
+
+    if (!file) {
+      return [
+        '🔬 [INVARIANT FUZZING ENGINE]',
+        'Usage: /fuzz <filePath> [functionName] [iterations] [invariantType]',
+        'Invariants: NO_PANIC | IDEMPOTENCY | ROUNDTRIP | COMMUTATIVITY | MONOTONICITY',
+        'Example: /fuzz engine/verification/CanonicalJson.ts canonicalize 100 IDEMPOTENCY',
+      ].join('\n');
+    }
+
+    try {
+      const report = await InvariantFuzzEngine.fuzzFile(ctx.cwd, file, fnName, invariant, {
+        cwd: ctx.cwd,
+        iterations,
+        generateReproScript: true,
+      });
+
+      const status = report.overallPassed ? '✅ ALL INVARIANTS SATISFIED' : '❌ INVARIANT VIOLATION DETECTED';
+      const lines = [
+        `🔬 [INVARIANT FUZZ REPORT]: ${report.target}`,
+        `- Invariant: ${report.invariantType}`,
+        `- Iterations: ${report.passedIterations}/${report.totalIterations} passed (${report.durationMs}ms)`,
+        `- Verdict: ${status}`,
+      ];
+
+      if (!report.overallPassed) {
+        lines.push(`- Error: ${report.errorMessage || 'Unknown error'}`);
+        lines.push(`- Minimal Shrunk Counterexample: ${JSON.stringify(report.shrunkCounterexample)}`);
+        if (report.reproScriptPath) {
+          lines.push(`- Repro Script: ${report.reproScriptPath}`);
+        }
+      }
+      return lines.join('\n');
+    } catch (err: any) {
+      return `[FUZZ ERROR]: ${err.message}`;
+    }
+  },
+};
+
 export function registerBuiltinCommands(registry: CommandRegistry): void {
   // Claude Code core commands
+  registry.register(fuzzCommand);
   registry.register(reviewCommand);
   registry.register(commitCommand);
   registry.register(diffCommand);
@@ -2083,6 +2292,7 @@ export function registerBuiltinCommands(registry: CommandRegistry): void {
   registry.register(worktreeCommand);
   registry.register(gatewayCommand);
   registry.register(sessionsCommand);
+  registry.register(resumeCommand);
   registry.register(newCommand);
   registry.register(deleteSessionCommand);
   registry.register(providersCommand);

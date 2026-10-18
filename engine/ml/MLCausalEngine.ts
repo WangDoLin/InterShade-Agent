@@ -92,6 +92,35 @@ export class MLCausalEngine {
   }
 
   /**
+   * Grounds model architecture selection using modern 2025-2026 literature from OpenAlex
+   */
+  groundWithModernLiterature(
+    papers: Array<{ title: string; doi?: string; year?: number; architecture?: string }>
+  ): void {
+    for (const paper of papers) {
+      this.context.literatureBaselines.push({
+        title: paper.title,
+        doi: paper.doi,
+        architecture: paper.architecture || `SOTA ${paper.year || 2026}`,
+      });
+    }
+    const count = papers.length;
+    this.recordStage('ArchitectureDiscovery', 'PASSED', `Injected ${count} modern 2025-2026 literature baselines from OpenAlex.`);
+  }
+
+  /**
+   * Injects authoritative biological oracle ground-truth (AlphaGenome & ENCODE)
+   */
+  injectBioOracleGroundTruth(
+    oracleType: 'AlphaGenome' | 'ENCODE_cCRE' | string,
+    target: string,
+    summary: string
+  ): void {
+    this.addDomainOracle(oracleType, target, summary);
+    this.recordStage('DomainOracles', 'PASSED', `Empirical ground-truth anchored from ${oracleType} for target [${target}].`);
+  }
+
+  /**
    * Adds literature baselines and SOTA architectures retrieved from OpenAlex/arXiv
    */
   addLiteratureBaseline(item: { title: string; doi?: string; metricScore?: number; architecture?: string }): void {

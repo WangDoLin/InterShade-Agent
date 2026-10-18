@@ -26,6 +26,7 @@ import { ScheduleTaskTool } from './agentic/ScheduleTaskTool.js';
 import { PromptEnhancerTool } from './agentic/PromptEnhancerTool.js';
 import { DependencyAuditTool } from './code/DependencyAuditTool.js';
 import { MaxingDepartmentTool } from './agentic/MaxingDepartmentTool.js';
+import { InvariantFuzzTool } from './execution/InvariantFuzzTool.js';
 
 import { WebFetchTool } from './web/WebFetchTool.js';
 import {
@@ -89,6 +90,7 @@ export class ToolRegistry {
     this.register(new CodeReviewSentinelTool());
     this.register(new PromptEnhancerTool());
     this.register(new DependencyAuditTool());
+    this.register(new InvariantFuzzTool());
 
     // Serena Semantic Engine tools
     this.register(new SerenaOutlineTool());
