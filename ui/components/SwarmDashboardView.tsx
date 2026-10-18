@@ -6,14 +6,42 @@ import { THEME } from '../theme.js';
 export interface SwarmDashboardViewProps {
   tasks: SwarmTask[];
   overallStatus?: SwarmProgressEvent['overallStatus'];
+  isCompact?: boolean;
   onClose?: () => void;
 }
 
 export const SwarmDashboardView: React.FC<SwarmDashboardViewProps> = ({
   tasks,
   overallStatus = 'running',
+  isCompact = false,
 }) => {
   if (tasks.length === 0) return null;
+
+  if (isCompact) {
+    const completedCount = tasks.filter((t) => t.status === 'completed').length;
+    const runningTask = tasks.find((t) => t.status === 'running' || t.status === 'verifying');
+    return (
+      <Box flexDirection="row" alignItems="center" gap={1} paddingLeft={1} marginY={0}>
+        <Text bold color="cyan">
+          🐝 SWARM ({tasks.length}):
+        </Text>
+        <Text bold color={overallStatus === 'completed' ? 'green' : 'yellow'}>
+          [{overallStatus.toUpperCase()}]
+        </Text>
+        <Text color={THEME.colors.muted}>
+          ({completedCount}/{tasks.length} done)
+        </Text>
+        {runningTask && (
+          <Box flexDirection="row" gap={1}>
+            <Text color={THEME.colors.border}>│</Text>
+            <Text color={THEME.colors.accent}>
+              Active: {runningTask.role} ({runningTask.id})
+            </Text>
+          </Box>
+        )}
+      </Box>
+    );
+  }
 
   const renderProgressBar = (percent: number, width = 20) => {
     const clamped = Math.max(0, Math.min(100, percent));

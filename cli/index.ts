@@ -382,6 +382,7 @@ program
   .option('--all-perms', 'Grant all permissions (alias for --bypass-permissions)', false)
   .option('--yolo', 'YOLO mode: give agent all permissions without asking', false)
   .option('-n, --new', 'Start a fresh new session instead of resuming previous', false)
+  .option('-r, --resume [id]', 'Resume a previous session (id, latest, or omit for latest)')
   .option('--session <id>', 'Resume a specific session ID')
   .option('-c, --cwd <path>', 'Working directory path', process.cwd())
   .option('-t, --max-turns <number>', 'Maximum turns per prompt (0 for unlimited continuous execution)', undefined)
@@ -399,28 +400,45 @@ program
     const defaultProvider = config.defaultProvider;
     const defaultModel = config.defaultModel;
 
-    const parsedMaxTurns = options.maxTurns !== undefined ? parseInt(options.maxTurns, 10) : config.maxTurns;
+    let parsedMaxTurns = config.maxTurns;
+    if (options.maxTurns !== undefined) {
+      const optStr = String(options.maxTurns).toLowerCase().trim();
+      if (['unlimited', 'inf', 'infinite', '0', 'none', 'continuous'].includes(optStr)) {
+        parsedMaxTurns = 0;
+      } else {
+        const num = parseInt(optStr, 10);
+        parsedMaxTurns = isNaN(num) ? config.maxTurns : num;
+      }
+    }
+
+    const requestedSessionId =
+      typeof options.resume === 'string' && options.resume.toLowerCase() !== 'true'
+        ? options.resume
+        : options.session;
 
     const sessionConfig: SessionConfig = {
-      sessionId: options.session,
-      resumeSession: !options.new,
+      sessionId: requestedSessionId,
+      resumeSession: Boolean(options.resume) || !options.new,
       provider: (options.provider as SessionConfig['provider']) || defaultProvider,
       model: options.model || (options.provider ? config.defaultModel : defaultModel),
       cwd: targetCwd,
       maxTokens: config.maxContextTokens,
-      maxTurns: isNaN(parsedMaxTurns) ? config.maxTurns : parsedMaxTurns,
+      maxTurns: parsedMaxTurns,
       permissionMode,
       proofMode: Boolean(options.proof),
     };
 
     const queryEngine = new QueryEngine(sessionConfig);
 
-    // Safe stdout proxy to prevent Ink from triggering catastrophic clearTerminal + fullStaticOutput dump
-    // when dynamic terminal height budget is evaluated against physical terminal rows.
+    // Safe stdout proxy to ensure Ink respects physical terminal dimensions
+    // with a reliable fallback when rows or columns is undefined or 0 (e.g. non-TTY).
     const safeStdout = new Proxy(process.stdout, {
       get(target, prop, receiver) {
         if (prop === 'rows') {
-          return 99999;
+          return typeof target.rows === 'number' && target.rows > 0 ? target.rows : 24;
+        }
+        if (prop === 'columns') {
+          return typeof target.columns === 'number' && target.columns > 0 ? target.columns : 80;
         }
         const val = Reflect.get(target, prop, receiver);
         return typeof val === 'function' ? val.bind(target) : val;

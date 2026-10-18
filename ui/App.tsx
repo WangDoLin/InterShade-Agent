@@ -21,6 +21,7 @@ import { TerminalMouseManager } from './services/TerminalMouseManager.js';
 import { extractPromptTurns, truncatePromptText } from './utils/turnExtractor.js';
 import { PlanManager } from '../state/PlanManager.js';
 import { TaskManager, taskEvents } from '../state/TaskManager.js';
+import { SessionStore } from '../state/SessionStore.js';
 import type { TaskItem } from '../tasks/TaskGraph.js';
 import type { QueryEngine } from '../orchestrator/QueryEngine.js';
 import type { UnifiedMessage, PermissionRequest, UserQuestionRequest } from '../types/index.js';
@@ -110,6 +111,26 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
       mouseMgr.disable();
     };
   }, []);
+
+  const [terminalDimensions, setTerminalDimensions] = useState(() => ({
+    rows: process.stdout.rows || 24,
+    columns: process.stdout.columns || 80,
+  }));
+
+  useEffect(() => {
+    const handleResize = () => {
+      setTerminalDimensions({
+        rows: process.stdout.rows || 24,
+        columns: process.stdout.columns || 80,
+      });
+    };
+    process.stdout.on('resize', handleResize);
+    return () => {
+      process.stdout.off('resize', handleResize);
+    };
+  }, []);
+
+  const isCompact = isBusy || terminalDimensions.rows < 25;
 
   const promptTurns = useMemo(() => extractPromptTurns(messages), [messages]);
 
@@ -529,6 +550,86 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
       return;
     }
 
+    // 4b. Session resume / switch commands
+    if (
+      prompt === '/resume' ||
+      prompt.startsWith('/resume ') ||
+      prompt === 'resume' ||
+      prompt.startsWith('resume ') ||
+      prompt === '/switch' ||
+      prompt.startsWith('/switch ') ||
+      prompt === 'switch' ||
+      prompt.startsWith('switch ') ||
+      prompt === '/load' ||
+      prompt.startsWith('/load ')
+    ) {
+      const parts = prompt.trim().split(/\s+/);
+      const targetArg = parts[1];
+
+      if (!targetArg) {
+        // List recent sessions for user to choose from
+        const sessions = SessionStore.listSessions(6);
+        const lines: string[] = ['Conversations available to resume:'];
+        for (const s of sessions) {
+          const isCurrent = s.id === sessionState.id ? ' [CURRENT]' : '';
+          const timeStr = new Date(s.updatedAt).toLocaleString();
+          const totalTokens = s.totalInputTokens + s.totalOutputTokens;
+          lines.push(`- [${s.id.slice(0, 8)}] ${s.title} | ${s.model} | ${totalTokens.toLocaleString()} tokens | $${s.totalCostUsd.toFixed(4)} USD${isCurrent}`);
+          lines.push(`  ID: ${s.id} (${timeStr})`);
+        }
+        lines.push('');
+        lines.push('Usage: /resume <id> (or first 8 chars) | /resume latest');
+
+        const infoMsg: UnifiedMessage = {
+          id: randomUUID(),
+          role: 'assistant',
+          content: lines.join('\n'),
+          timestamp: Date.now() + 1,
+        };
+        activeEngine.appendSyntheticMessage(infoMsg);
+        setMessages([...activeEngine.getMessages()]);
+        return;
+      }
+
+      const res = activeEngine.switchSession(targetArg);
+      if (!res.success || !res.session) {
+        const errorMsg: UnifiedMessage = {
+          id: randomUUID(),
+          role: 'assistant',
+          content: `Failed to resume session: ${res.error || 'Unknown error'}\nRun "/resume" or "/sessions" to see all available conversations.`,
+          timestamp: Date.now() + 1,
+        };
+        activeEngine.appendSyntheticMessage(errorMsg);
+        setMessages([...activeEngine.getMessages()]);
+        return;
+      }
+
+      const resumed = res.session;
+      TaskManager.clearAllTasks(sessionState.id);
+      const restoredTasks = TaskManager.listTasks(resumed.id);
+      setSessionTasks(restoredTasks);
+
+      setSessionState({ ...resumed });
+      setMessages([...activeEngine.getMessages()]);
+      setContextTokens(activeEngine.getContextTokens());
+      setCurrentToolName(null);
+      setProgressText(null);
+      setPendingPermission(null);
+
+      // Clean terminal screen and scrollback for the resumed conversation
+      process.stdout.write('\x1b[2J\x1b[H\x1b[3J');
+
+      const totalTokens = resumed.totalInputTokens + resumed.totalOutputTokens;
+      const noticeMsg: UnifiedMessage = {
+        id: randomUUID(),
+        role: 'assistant',
+        content: `[RESUMED]: Switched to conversation ${resumed.id.slice(0, 8)}...\nModel: ${resumed.model} (${resumed.provider})\nRestored Messages: ${activeEngine.getMessages().length}\nTokens: ${totalTokens.toLocaleString()} | Cost: $${resumed.totalCostUsd.toFixed(4)} USD`,
+        timestamp: Date.now() + 1,
+      };
+      setMessages([noticeMsg]);
+      return;
+    }
+
     // 5. Language switch
     if (prompt.startsWith('/lang') || prompt.startsWith('lang ')) {
       const userCmdMsg: UnifiedMessage = {
@@ -614,28 +715,93 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
         return;
       }
 
-      const currentMode = sessionState.permissionMode;
-      const nextMode = currentMode === 'plan' && !targetPath ? 'default' : 'plan';
-      activeEngine.setPermissionMode(nextMode);
-
-      let noticeText = nextMode === 'plan' ? t('slash.planModeOn') : t('slash.planModeOff');
-      if (targetPath) {
-        noticeText += `\nTarget Scope: ${targetPath}\nReady for planning. Describe what features or fixes you want to investigate.`;
+      if (sub === 'on') {
+        activeEngine.setPermissionMode('plan');
+        setSessionState((prev) => ({ ...prev, permissionMode: 'plan' }));
+        const noticeMsg: UnifiedMessage = {
+          id: randomUUID(),
+          role: 'assistant',
+          content: t('slash.planModeOn'),
+          timestamp: Date.now() + 1,
+        };
+        activeEngine.appendSyntheticMessage(noticeMsg);
+        setMessages([...activeEngine.getMessages()]);
+        return;
       }
+
+      if (sub === 'off') {
+        activeEngine.setPermissionMode('default');
+        setSessionState((prev) => ({ ...prev, permissionMode: 'default' }));
+        const noticeMsg: UnifiedMessage = {
+          id: randomUUID(),
+          role: 'assistant',
+          content: t('slash.planModeOff'),
+          timestamp: Date.now() + 1,
+        };
+        activeEngine.appendSyntheticMessage(noticeMsg);
+        setMessages([...activeEngine.getMessages()]);
+        return;
+      }
+
+      if (!targetPath) {
+        const currentMode = sessionState.permissionMode;
+        const nextMode = currentMode === 'plan' ? 'default' : 'plan';
+        activeEngine.setPermissionMode(nextMode);
+        setSessionState((prev) => ({ ...prev, permissionMode: nextMode }));
+        const noticeMsg: UnifiedMessage = {
+          id: randomUUID(),
+          role: 'assistant',
+          content: nextMode === 'plan' ? t('slash.planModeOn') : t('slash.planModeOff'),
+          timestamp: Date.now() + 1,
+        };
+        activeEngine.appendSyntheticMessage(noticeMsg);
+        setMessages([...activeEngine.getMessages()]);
+        return;
+      }
+
+      // When targetPath is provided (e.g. "plan tự build model AI..." or "/plan design auth"):
+      // 1. Enable Plan Mode (Safe Read-Only architectural mode)
+      activeEngine.setPermissionMode('plan');
+      setSessionState((prev) => ({ ...prev, permissionMode: 'plan' }));
+
+      // 2. If agent is currently busy, queue the prompt
+      if (isBusyRef.current) {
+        const trimmed = prompt.trim();
+        if (trimmed) {
+          queuedPromptRef.current = trimmed;
+          setQueuedPrompt(trimmed);
+        }
+        return;
+      }
+
+      // 3. Formulate planning instruction and execute with AI model (never freeze!)
       const activePlan = PlanManager.getActivePlan(sessionState.id);
-      if (activePlan && nextMode === 'plan') {
-        noticeText += `\n\nActive Plan (v${activePlan.currentVersion}): "${activePlan.title}" with ${activePlan.steps.length} steps. Any updates will merge with this plan.`;
+      const planContext = activePlan
+        ? `Note: An existing plan "${activePlan.title}" exists. Formulate a comprehensive plan for the new objective.\n`
+        : '';
+      const planningPrompt = `[Plan Mode Active - Read-Only Architectural Planning]\nObjective: ${targetPath}\n${planContext}\nPlease investigate requirements and codebase (using read-only tools if needed), and formulate a comprehensive, step-by-step architectural plan to achieve this objective.`;
+
+      if (process.stdout.isTTY) {
+        try {
+          const shortPrompt = truncatePromptText(prompt, 35);
+          process.stdout.write(`\x1b]0;InterShader [Turn #${promptTurns.length + 1}]: ${shortPrompt}\x07`);
+        } catch {
+          // Ignore if stdout is closed
+        }
       }
 
-      const noticeMsg: UnifiedMessage = {
-        id: randomUUID(),
-        role: 'assistant',
-        content: noticeText,
-        timestamp: Date.now() + 1,
-      };
-      activeEngine.appendSyntheticMessage(noticeMsg);
-      setMessages([...activeEngine.getMessages()]);
-      setSessionState({ ...sessionState, permissionMode: nextMode });
+      setIsBusy(true);
+      isBusyRef.current = true;
+      try {
+        await activeEngine.executeUserPrompt(planningPrompt);
+      } catch (err: unknown) {
+        handleError(err);
+      } finally {
+        setIsBusy(false);
+        isBusyRef.current = false;
+        setCurrentToolName(null);
+        setProgressText(null);
+      }
       return;
     }
 
@@ -654,18 +820,24 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
           };
           activeEngine.appendSyntheticMessage(userCmdMsg);
 
+          const pool = MultiSessionPool.getInstance();
+          const currentTab = pool.getActiveTab();
+          const targetEngine = currentTab ? currentTab.queryEngine : activeEngine;
+
           const cmdCtx = {
             cwd: sessionState.cwd,
-            sessionState: sessionState as unknown as Record<string, unknown>,
+            sessionState: {
+              ...sessionState,
+              maxTurns: targetEngine.getMaxTurns(),
+            } as unknown as Record<string, unknown>,
             args: parsedCmd.args,
           };
 
           const res = await cmd.execute(cmdCtx);
 
           // Get active tab's query engine in case the command switched tabs (e.g. /tab new or /tab switch)
-          const pool = MultiSessionPool.getInstance();
-          const currentTab = pool.getActiveTab();
-          const targetEngine = currentTab ? currentTab.queryEngine : activeEngine;
+          const updatedTab = pool.getActiveTab();
+          const finalEngine = updatedTab ? updatedTab.queryEngine : activeEngine;
 
           const localMsg: UnifiedMessage = {
             id: randomUUID(),
@@ -673,20 +845,30 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
             content: res,
             timestamp: Date.now() + 1,
           };
-          targetEngine.appendSyntheticMessage(localMsg);
-          setMessages([...targetEngine.getMessages()]);
+          finalEngine.appendSyntheticMessage(localMsg);
+          setMessages([...finalEngine.getMessages()]);
 
           // Synchronize sessionState and targetEngine with model/provider/maxTurns/permissionMode changes
           const updatedState = { ...sessionState, ...(cmdCtx.sessionState as unknown as typeof sessionState) };
+          if ((cmdCtx.sessionState as Record<string, unknown>).maxTurns !== undefined) {
+            const newMaxTurns = (cmdCtx.sessionState as Record<string, unknown>).maxTurns as number;
+            finalEngine.updateMaxTurns(newMaxTurns);
+            activeEngine.updateMaxTurns(newMaxTurns);
+            updatedState.maxTurns = newMaxTurns;
+          }
+          if ((cmdCtx.sessionState as Record<string, unknown>).maxingMode !== undefined) {
+            const newMaxing = Boolean((cmdCtx.sessionState as Record<string, unknown>).maxingMode);
+            const budget = (cmdCtx.sessionState as Record<string, unknown>).thinkingBudget as number | undefined;
+            finalEngine.setMaxingMode(newMaxing, budget);
+            activeEngine.setMaxingMode(newMaxing, budget);
+            updatedState.maxingMode = newMaxing;
+          }
           setSessionState(updatedState);
           if (updatedState.permissionMode && updatedState.permissionMode !== sessionState.permissionMode) {
-            targetEngine.setPermissionMode(updatedState.permissionMode);
+            finalEngine.setPermissionMode(updatedState.permissionMode);
           }
           if (updatedState.provider && updatedState.model) {
-            targetEngine.updateSessionModel(updatedState.provider, updatedState.model);
-          }
-          if ((cmdCtx.sessionState as Record<string, unknown>).maxTurns !== undefined) {
-            targetEngine.updateMaxTurns((cmdCtx.sessionState as Record<string, unknown>).maxTurns as number);
+            finalEngine.updateSessionModel(updatedState.provider, updatedState.model);
           }
           return;
         }
@@ -733,7 +915,7 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
     }
 
     // 8. History Inspection Navigation Slash Commands
-    if (prompt.startsWith('/inspect') || prompt.startsWith('/turn') || prompt.startsWith('turn ') || prompt.startsWith('inspect ')) {
+    if (prompt.startsWith('/inspect') || prompt.startsWith('/turn ') || prompt.startsWith('turn ') || prompt.startsWith('inspect ') || prompt === '/turn' || prompt === 'turn') {
       const parts = prompt.trim().split(/\s+/);
       const targetTurn = parseInt(parts[1], 10);
       if (!isNaN(targetTurn) && targetTurn >= 1 && targetTurn <= promptTurns.length) {
@@ -940,7 +1122,7 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
   }, [visibleMessages, promptTurns]);
 
   return (
-    <Box flexDirection="column" paddingX={1}>
+    <Box flexDirection="column" paddingX={1} width={terminalDimensions.columns}>
       {/* Completed messages and header rendered once permanently via Static */}
       <Static items={staticItems}>
         {(item: StaticItem) => {
@@ -991,6 +1173,7 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
           {isBusy && sessionTasks.length > 0 && (
             <TaskTrackerView
               tasks={sessionTasks}
+              isCompact={isCompact}
             />
           )}
 
@@ -1007,12 +1190,17 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
             contextTokens={contextTokens}
             totalCostUsd={sessionState.totalCostUsd}
             isBusy={isBusy}
+            isCompact={isCompact}
+            columns={terminalDimensions.columns}
+            maxTurns={sessionState.maxTurns !== undefined ? sessionState.maxTurns : activeEngine.getMaxTurns()}
+            maxingMode={Boolean(sessionState.maxingMode ?? activeEngine.getSessionState().maxingMode)}
           />
 
           {isBusy && swarmTasks.length > 0 && (
             <SwarmDashboardView
               tasks={swarmTasks}
               overallStatus={swarmStatus || 'running'}
+              isCompact={isCompact}
             />
           )}
 
@@ -1043,6 +1231,7 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
               onAbort={handleAbort}
               onClearQueue={handleClearQueue}
               isBusy={isBusy}
+              isCompact={isCompact}
               queuedPrompt={queuedPrompt}
               disabled={false}
               focus={!pendingPermission && !pendingQuestion}

@@ -236,12 +236,12 @@ export const TerminalTextInput: React.FC<TerminalTextInputProps> = ({
   // If input is empty and placeholder exists
   if (value.length === 0) {
     if (!focus || !showCursor) {
-      return <Text color="gray">{placeholder}</Text>;
+      return <Text color="gray" wrap="truncate-end">{placeholder}</Text>;
     }
 
     if (placeholder.length > 0) {
       return (
-        <Text color="gray">
+        <Text color="gray" wrap="truncate-end">
           <Text inverse>{placeholder[0]}</Text>
           {placeholder.slice(1)}
         </Text>
@@ -253,7 +253,7 @@ export const TerminalTextInput: React.FC<TerminalTextInputProps> = ({
 
   // If cursor is disabled or input not focused
   if (!focus || !showCursor) {
-    return <Text>{value}</Text>;
+    return <Text wrap="truncate-end">{value}</Text>;
   }
 
   // Render text with inverted cursor block at cursorOffset
@@ -261,7 +261,7 @@ export const TerminalTextInput: React.FC<TerminalTextInputProps> = ({
 
   if (safeOffset < value.length) {
     return (
-      <Text>
+      <Text wrap="truncate-end">
         {value.slice(0, safeOffset)}
         <Text inverse>{value[safeOffset]}</Text>
         {value.slice(safeOffset + 1)}
@@ -271,7 +271,7 @@ export const TerminalTextInput: React.FC<TerminalTextInputProps> = ({
 
   // Cursor is at the end of the text
   return (
-    <Text>
+    <Text wrap="truncate-end">
       {value}
       <Text inverse>{' '}</Text>
     </Text>

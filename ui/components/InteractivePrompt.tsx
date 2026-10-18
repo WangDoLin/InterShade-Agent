@@ -15,6 +15,7 @@ export interface InteractivePromptProps {
   onClearQueue?: () => void;
   disabled?: boolean;
   isBusy?: boolean;
+  isCompact?: boolean;
   queuedPrompt?: string | null;
   focus?: boolean;
   availableCommands?: SlashCommand[];
@@ -33,6 +34,7 @@ export const InteractivePrompt: React.FC<InteractivePromptProps> = ({
   onClearQueue,
   disabled = false,
   isBusy = false,
+  isCompact = false,
   queuedPrompt = null,
   focus,
   availableCommands = [],
@@ -234,7 +236,7 @@ export const InteractivePrompt: React.FC<InteractivePromptProps> = ({
 
             {queuedPrompt && slots.length === 1 && (
               <Box marginTop={0}>
-                <Text color="yellow">
+                <Text color="yellow" wrap="truncate-end">
                   [Queued next]: &quot;
                   {queuedPrompt.length > 60 ? `${queuedPrompt.slice(0, 57)}...` : queuedPrompt}
                   &quot;
@@ -242,15 +244,13 @@ export const InteractivePrompt: React.FC<InteractivePromptProps> = ({
               </Box>
             )}
 
-            {isFocused && (
+            {isFocused && (!isBusy || queuedPrompt) && !isCompact && (
               <Box marginTop={0}>
-                <Text color={THEME.colors.muted}>
+                <Text color={THEME.colors.muted} wrap="truncate-end">
                   {slots.length > 1
                     ? '[Tab] Chuyển khung session │ [Ctrl+N] Thêm session │ [Enter] Chạy song song │ [Esc] Hủy khung'
                     : isBusy
-                    ? queuedPrompt
-                      ? '[Up Arrow] Edit queue │ [Esc] Delete queue │ [Enter] Replace │ [Ctrl+C] Stop agent'
-                      : '[Enter] Queue next │ [Esc / Ctrl+C] Stop agent │ [/help] Commands'
+                    ? '[Up Arrow] Edit queue │ [Esc] Delete queue │ [Enter] Replace │ [Ctrl+C] Stop agent'
                     : '[Enter] Gửi │ [Ctrl+N] Thêm khung session khác │ [/swarm] Swarm │ [/help] Lệnh'}
                 </Text>
               </Box>

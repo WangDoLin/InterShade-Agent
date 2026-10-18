@@ -58,7 +58,7 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({ tabs, activeTabId 
       </Box>
 
       <Box flexDirection="row" marginTop={0}>
-        <Text dimColor color="gray">
+        <Text dimColor color="gray" wrap="truncate-end">
           Phím tắt: Alt+1..{Math.min(9, tabs.length)}: Chuyển tab | /tab new &lt;tên&gt; | /tab merge | /tab close
         </Text>
       </Box>

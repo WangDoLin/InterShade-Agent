@@ -7,6 +7,7 @@ import type { TaskItem } from '../../tasks/TaskGraph.js';
 export interface TaskTrackerViewProps {
   tasks: TaskItem[];
   collapsed?: boolean;
+  isCompact?: boolean;
 }
 
 function renderProgressBar(completed: number, total: number, width = 10): string {
@@ -19,6 +20,7 @@ function renderProgressBar(completed: number, total: number, width = 10): string
 export const TaskTrackerView: React.FC<TaskTrackerViewProps> = ({
   tasks,
   collapsed = false,
+  isCompact = false,
 }) => {
   if (!tasks || tasks.length === 0) {
     return null;
@@ -28,7 +30,7 @@ export const TaskTrackerView: React.FC<TaskTrackerViewProps> = ({
   const inProgressTask = tasks.find((t) => t.status === 'in_progress');
   const totalCount = tasks.length;
   const percentage = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-  const progressBar = renderProgressBar(completedCount, totalCount, 12);
+  const progressBar = renderProgressBar(completedCount, totalCount, 10);
 
   // Active (uncompleted) tasks: when a task is ticked (completed), it disappears from the active view
   const activeTasks = tasks.filter((t) => t.status !== 'completed');
@@ -38,8 +40,31 @@ export const TaskTrackerView: React.FC<TaskTrackerViewProps> = ({
     return null;
   }
 
-  // Limit displayed items to remaining active context
-  const MAX_DISPLAY = 5;
+  if (isCompact || collapsed) {
+    const activeTask = inProgressTask || activeTasks[0];
+    return (
+      <Box flexDirection="row" alignItems="center" gap={1} paddingLeft={1} marginY={0}>
+        <Text bold color={THEME.colors.primary}>
+          📋 TASKS:
+        </Text>
+        <Text color={percentage === 100 ? THEME.colors.ok : THEME.colors.accent}>
+          [{progressBar}] {percentage}% ({completedCount}/{totalCount})
+        </Text>
+        {activeTask && (
+          <Box flexDirection="row" gap={1}>
+            <Text color={THEME.colors.border}>│</Text>
+            <Text bold color={THEME.colors.warn}>[▶]</Text>
+            <Text color={THEME.colors.text}>
+              #{activeTask.id} {activeTask.subject.length > 40 ? `${activeTask.subject.slice(0, 37)}...` : activeTask.subject}
+            </Text>
+          </Box>
+        )}
+      </Box>
+    );
+  }
+
+  // Limit displayed items to remaining active context (max 3 to conserve terminal rows)
+  const MAX_DISPLAY = 3;
   const displayTasks = activeTasks.slice(0, MAX_DISPLAY);
   const hiddenCount = activeTasks.length - displayTasks.length;
 
