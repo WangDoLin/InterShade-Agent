@@ -37,7 +37,7 @@
   "author": "InterShader Team",
   "license": "MIT",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
+    "@anthropic-ai/sdk": "^0.135.0",
     "@google/generative-ai": "^0.24.0",
     "@modelcontextprotocol/sdk": "^1.6.1",
 
@@ -46,7 +46,7 @@
     "diff": "^7.0.0",
     "dotenv": "^16.4.7",
     "fast-glob": "^3.3.3",
-    "ignore": "^7.0.3",
+    "ignore": "^7.0.13",
     "ink": "^5.1.0",
     "ink-spinner": "^5.0.0",
     "openai": "^4.86.1",
