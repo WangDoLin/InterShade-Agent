@@ -6,7 +6,7 @@
     "agent-tool-executor": {
       "name": "agent-tool-executor",
       "enabled": true,
-      "approvedCommitSha": "d4e5f67890123456789abcdef0123456789a1b2c",
+      "approvedCommitSha": "",
       "approvedContentSha256": "2e323bc69735ee5e71fc5c12e287c62765d0eb1bbb4af6f7bafdba3940647321",
       "capabilitiesAllowed": {
         "scriptExecution": false,
@@ -15,12 +15,14 @@
       },
       "approvedBy": "InterShader Security Gate",
       "approvedAt": "2026-10-13T14:37:48.239Z",
-      "notes": "Approved baseline for agent-tool-executor"
+      "notes": "Approved baseline for agent-tool-executor",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "cicd-deployment-orchestrator": {
       "name": "cicd-deployment-orchestrator",
       "enabled": true,
-      "approvedCommitSha": "f67890123456789abcdef0123456789a1b2c3d4e5",
+      "approvedCommitSha": "",
       "approvedContentSha256": "aca72f4b9d37aad53d39383d956514e0e98c9284f1445b54cef3d982280310a2",
       "capabilitiesAllowed": {
         "scriptExecution": false,
@@ -29,12 +31,14 @@
       },
       "approvedBy": "InterShader Security Gate",
       "approvedAt": "2026-10-13T14:37:48.239Z",
-      "notes": "Approved baseline for cicd-deployment-orchestrator"
+      "notes": "Approved baseline for cicd-deployment-orchestrator",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "cloud-provider-adapter": {
       "name": "cloud-provider-adapter",
       "enabled": true,
-      "approvedCommitSha": "e5f67890123456789abcdef0123456789a1b2c3d4",
+      "approvedCommitSha": "",
       "approvedContentSha256": "cb8cb57b1e2d999424ab1013d1625d0f728d5d2ed32a8fae93c34750f27b60ff",
       "capabilitiesAllowed": {
         "scriptExecution": false,
@@ -43,12 +47,14 @@
       },
       "approvedBy": "InterShader Security Gate",
       "approvedAt": "2026-10-13T14:37:48.239Z",
-      "notes": "Approved baseline for cloud-provider-adapter"
+      "notes": "Approved baseline for cloud-provider-adapter",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "database-sql-optimizer": {
       "name": "database-sql-optimizer",
       "enabled": true,
-      "approvedCommitSha": "c2d3e4f5a6b7c8d9e0123456789abcdef012345a",
+      "approvedCommitSha": "",
       "approvedContentSha256": "ca3ec0545632b6f45ab27c779d871431caf19298baf03af54279b9ebe44d8efc",
       "capabilitiesAllowed": {
         "scriptExecution": false,
@@ -57,12 +63,14 @@
       },
       "approvedBy": "InterShader Security Gate",
       "approvedAt": "2026-10-13T14:37:48.239Z",
-      "notes": "Approved baseline for database-sql-optimizer"
+      "notes": "Approved baseline for database-sql-optimizer",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "devops-docker-kubernetes": {
       "name": "devops-docker-kubernetes",
       "enabled": true,
-      "approvedCommitSha": "e4f5a6b7c8d9e0123456789abcdef012345a6b7c",
+      "approvedCommitSha": "",
       "approvedContentSha256": "15dee2c1e15f2886e5f30e12679dfe51c47e9ddfd6f8d3648c2561edc0e7098d",
       "capabilitiesAllowed": {
         "scriptExecution": false,
@@ -71,12 +79,14 @@
       },
       "approvedBy": "InterShader Security Gate",
       "approvedAt": "2026-10-13T14:37:48.239Z",
-      "notes": "Approved baseline for devops-docker-kubernetes"
+      "notes": "Approved baseline for devops-docker-kubernetes",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "fullstack-web-architect": {
       "name": "fullstack-web-architect",
       "enabled": true,
-      "approvedCommitSha": "b1c2d3e4f5a6b7c8d9e0123456789abcdef01234",
+      "approvedCommitSha": "",
       "approvedContentSha256": "681bad1b6f9e594ca36ae0ebbb13432ee76bad838d906acfe1b0c410f14af8df",
       "capabilitiesAllowed": {
         "scriptExecution": false,
@@ -85,12 +95,14 @@
       },
       "approvedBy": "InterShader Security Gate",
       "approvedAt": "2026-10-13T14:37:48.239Z",
-      "notes": "Approved baseline for fullstack-web-architect"
+      "notes": "Approved baseline for fullstack-web-architect",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "git-workflow-pro": {
       "name": "git-workflow-pro",
       "enabled": true,
-      "approvedCommitSha": "a6b7c8d9e0123456789abcdef012345a6b7c8d9e",
+      "approvedCommitSha": "",
       "approvedContentSha256": "724683430a0f90bf24eb69a7874b95cbaf6db28a29c9756bebebc9e9df151bf0",
       "capabilitiesAllowed": {
         "scriptExecution": false,
@@ -99,12 +111,14 @@
       },
       "approvedBy": "InterShader Security Gate",
       "approvedAt": "2026-10-13T14:37:48.239Z",
-      "notes": "Approved baseline for git-workflow-pro"
+      "notes": "Approved baseline for git-workflow-pro",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "performance-profiler-debugger": {
       "name": "performance-profiler-debugger",
       "enabled": true,
-      "approvedCommitSha": "f5a6b7c8d9e0123456789abcdef012345a6b7c8d",
+      "approvedCommitSha": "",
       "approvedContentSha256": "cf23bb4525191136ba5b56c2a53e9f21223d11bf9b59c36f0fb87cbe79641480",
       "capabilitiesAllowed": {
         "scriptExecution": false,
@@ -113,12 +127,14 @@
       },
       "approvedBy": "InterShader Security Gate",
       "approvedAt": "2026-10-13T14:37:48.239Z",
-      "notes": "Approved baseline for performance-profiler-debugger"
+      "notes": "Approved baseline for performance-profiler-debugger",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "python-advanced-engineer": {
       "name": "python-advanced-engineer",
       "enabled": true,
-      "approvedCommitSha": "d3e4f5a6b7c8d9e0123456789abcdef012345a6b",
+      "approvedCommitSha": "",
       "approvedContentSha256": "965891c0f9aca4097428503273b99654ab2c2cdf793ceae283b81b693fb9d034",
       "capabilitiesAllowed": {
         "scriptExecution": false,
@@ -127,12 +143,14 @@
       },
       "approvedBy": "InterShader Security Gate",
       "approvedAt": "2026-10-13T14:37:48.239Z",
-      "notes": "Approved baseline for python-advanced-engineer"
+      "notes": "Approved baseline for python-advanced-engineer",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "security-audit-snyk-guard": {
       "name": "security-audit-snyk-guard",
       "enabled": true,
-      "approvedCommitSha": "5c8d3e2a1b9f708192a3b4c5d6e7f80123456789",
+      "approvedCommitSha": "",
       "approvedContentSha256": "ee3a8fed24ec2e4d1102466e84d246c7465c9271527b183d839c901c8b3bcaaa",
       "capabilitiesAllowed": {
         "scriptExecution": false,
@@ -141,12 +159,14 @@
       },
       "approvedBy": "InterShader Security Gate",
       "approvedAt": "2026-10-13T14:37:48.239Z",
-      "notes": "Approved baseline for security-audit-snyk-guard"
+      "notes": "Approved baseline for security-audit-snyk-guard",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "test-automation-vitest": {
       "name": "test-automation-vitest",
       "enabled": true,
-      "approvedCommitSha": "7b2c9e1054321fedcba9876543210fedcba98765",
+      "approvedCommitSha": "",
       "approvedContentSha256": "64dc5acae0accda0b2be16d792bea3b2577304d65e343e7a1c7d40f7e68812b1",
       "capabilitiesAllowed": {
         "scriptExecution": false,
@@ -155,12 +175,14 @@
       },
       "approvedBy": "InterShader Security Gate",
       "approvedAt": "2026-10-13T14:37:48.239Z",
-      "notes": "Approved baseline for test-automation-vitest"
+      "notes": "Approved baseline for test-automation-vitest",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "typescript-nodejs-analyzer": {
       "name": "typescript-nodejs-analyzer",
       "enabled": true,
-      "approvedCommitSha": "a3f89b4c2e1d7065983210456789abcdef012345",
+      "approvedCommitSha": "",
       "approvedContentSha256": "e4125673508fe1e475f5efe8003784eafe6858f51083a16d12d8ee156b3038c5",
       "capabilitiesAllowed": {
         "scriptExecution": false,
@@ -169,12 +191,14 @@
       },
       "approvedBy": "InterShader Security Gate",
       "approvedAt": "2026-10-13T14:37:48.239Z",
-      "notes": "Approved baseline for typescript-nodejs-analyzer"
+      "notes": "Approved baseline for typescript-nodejs-analyzer",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "sample-test-skill": {
       "name": "sample-test-skill",
-      "enabled": true,
-      "approvedCommitSha": "1234567890abcdef1234567890abcdef12345678",
+      "enabled": false,
+      "approvedCommitSha": "",
       "approvedContentSha256": "",
       "capabilitiesAllowed": {
         "scriptExecution": false,
@@ -183,12 +207,14 @@
       },
       "approvedBy": "InterShader Security Gate",
       "approvedAt": "2026-10-13T14:37:48.239Z",
-      "notes": "Approved testing skill"
+      "notes": "Approved testing skill",
+      "provenance": "UNVERIFIABLE",
+      "quarantineReason": "UNVERIFIABLE: missing local skill directory or unverified contentSha256"
     },
     "pytorch-deep-learning-architect": {
       "name": "pytorch-deep-learning-architect",
       "enabled": true,
-      "approvedCommitSha": "a1b2c3d4e5f67890123456789abcdef012345678",
+      "approvedCommitSha": "",
       "approvedContentSha256": "ca5dc72b9bb4f110ef5e47075d1c4c613933c19dc4da99dddb8d62d9199b96e1",
       "capabilitiesAllowed": {
         "scriptExecution": true,
@@ -197,12 +223,14 @@
       },
       "approvedBy": "InterShader Security Gate",
       "approvedAt": "2026-10-16T16:00:00.000Z",
-      "notes": "Approved deep learning PyTorch architecture skill"
+      "notes": "Approved deep learning PyTorch architecture skill",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "automl-tree-search-engineer": {
       "name": "automl-tree-search-engineer",
       "enabled": true,
-      "approvedCommitSha": "b2c3d4e5f67890123456789abcdef0123456789a",
+      "approvedCommitSha": "",
       "approvedContentSha256": "c6d73f8ca68206a0c1fbbc4a6520d943f04b82044adf886855c22d4b51cfe0d5",
       "capabilitiesAllowed": {
         "scriptExecution": true,
@@ -211,12 +239,14 @@
       },
       "approvedBy": "InterShader Security Gate",
       "approvedAt": "2026-10-16T16:00:00.000Z",
-      "notes": "Approved AutoML tree search over code and hyperparameters"
+      "notes": "Approved AutoML tree search over code and hyperparameters",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "bio-ai-foundation-models": {
       "name": "bio-ai-foundation-models",
       "enabled": true,
-      "approvedCommitSha": "c3d4e5f67890123456789abcdef0123456789a1b",
+      "approvedCommitSha": "",
       "approvedContentSha256": "ab1a285eeb3c0fd978930fa6ad8db243267e90334508bf6cb40e4d84dd38b62c",
       "capabilitiesAllowed": {
         "scriptExecution": true,
@@ -225,7 +255,9 @@
       },
       "approvedBy": "InterShader Security Gate",
       "approvedAt": "2026-10-16T16:00:00.000Z",
-      "notes": "Approved biological AI and foundation models skill"
+      "notes": "Approved biological AI and foundation models skill",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     }
   }
 }

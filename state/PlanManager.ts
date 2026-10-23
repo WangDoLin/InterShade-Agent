@@ -53,10 +53,45 @@ export interface MergePlanInput {
 
 /**
  * PlanManager coordinates stateful architecture and implementation plans,
- * tracking revisions and incrementally merging new requirements and modifications.
+ * tracking revisions in normalized `plan_revisions` rows (NEXT-C-13) and incrementally
+ * merging new requirements and modifications.
  */
 export class PlanManager {
   private static planCache: Map<string, ActivePlan> = new Map();
+
+  /**
+   * Retrieves all persisted revisions for a session from `plan_revisions` (NEXT-C-13).
+   */
+  static getRevisions(sessionId: string): PlanRevision[] {
+    if (!sessionId) return [];
+    try {
+      const db = getDatabase();
+      const rows = db
+        .prepare(
+          'SELECT version, title, overview, steps_json, acceptance_criteria_json, changelog_json, created_at FROM plan_revisions WHERE session_id = ? ORDER BY version ASC'
+        )
+        .all(sessionId) as Array<{
+        version: number;
+        title: string;
+        overview: string | null;
+        steps_json: string;
+        acceptance_criteria_json: string;
+        changelog_json: string;
+        created_at: number;
+      }>;
+      return rows.map((r) => ({
+        version: r.version,
+        title: r.title,
+        overview: r.overview || undefined,
+        steps: JSON.parse(r.steps_json || '[]'),
+        acceptanceCriteria: JSON.parse(r.acceptance_criteria_json || '[]'),
+        changelog: JSON.parse(r.changelog_json || '[]'),
+        timestamp: r.created_at,
+      }));
+    } catch {
+      return [];
+    }
+  }
 
   /**
    * Retrieves active plan for a session.
@@ -85,6 +120,10 @@ export class PlanManager {
         return null;
       }
 
+      const tableRevisions = this.getRevisions(sessionId);
+      const revisions: PlanRevision[] =
+        tableRevisions.length > 0 ? tableRevisions : JSON.parse(row.revisions_json || '[]');
+
       const plan: ActivePlan = {
         sessionId: row.session_id,
         currentVersion: row.current_version,
@@ -92,7 +131,7 @@ export class PlanManager {
         overview: row.overview || undefined,
         steps: JSON.parse(row.plan_json),
         acceptanceCriteria: [],
-        revisions: JSON.parse(row.revisions_json),
+        revisions,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
       };
@@ -111,13 +150,18 @@ export class PlanManager {
   }
 
   /**
-   * Persists an active plan to SQLite and memory cache.
+   * Persists an active plan to SQLite (`session_plans` + normalized `plan_revisions`) and memory cache.
    */
   static savePlan(plan: ActivePlan): void {
     this.planCache.set(plan.sessionId, plan);
 
     try {
       const db = getDatabase();
+      // Keep only the latest revision in session_plans.revisions_json to avoid unbounded JSON bloat,
+      // while storing full revision history in normalized plan_revisions rows (NEXT-C-13).
+      const latestOnly =
+        plan.revisions.length > 0 ? [plan.revisions[plan.revisions.length - 1]] : [];
+
       const stmt = db.prepare(`
         INSERT INTO session_plans (session_id, current_version, title, overview, plan_json, revisions_json, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -136,11 +180,38 @@ export class PlanManager {
         plan.title,
         plan.overview || null,
         JSON.stringify(plan.steps),
-        JSON.stringify(plan.revisions),
+        JSON.stringify(latestOnly),
         plan.createdAt,
         plan.updatedAt
       );
-    } catch (err) {
+
+      const revStmt = db.prepare(`
+        INSERT INTO plan_revisions (
+          session_id, version, title, overview, steps_json, acceptance_criteria_json, changelog_json, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(session_id, version) DO UPDATE SET
+          title = excluded.title,
+          overview = excluded.overview,
+          steps_json = excluded.steps_json,
+          acceptance_criteria_json = excluded.acceptance_criteria_json,
+          changelog_json = excluded.changelog_json,
+          created_at = excluded.created_at
+      `);
+
+      for (const rev of plan.revisions) {
+        revStmt.run(
+          plan.sessionId,
+          rev.version,
+          rev.title,
+          rev.overview || null,
+          JSON.stringify(rev.steps),
+          JSON.stringify(rev.acceptanceCriteria || []),
+          JSON.stringify(rev.changelog || []),
+          rev.timestamp
+        );
+      }
+    } catch {
       // In-memory cache still holds state if database write fails
     }
 
@@ -377,6 +448,7 @@ export class PlanManager {
     this.planCache.delete(sessionId);
     try {
       const db = getDatabase();
+      db.prepare('DELETE FROM plan_revisions WHERE session_id = ?').run(sessionId);
       db.prepare('DELETE FROM session_plans WHERE session_id = ?').run(sessionId);
     } catch {
       // Ignored

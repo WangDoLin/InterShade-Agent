@@ -91,6 +91,76 @@ export class ChallengeRegistry {
     return path.join(dir, 'trusted-checkpoint.json');
   }
 
+  private static getLockPath(): string {
+    const dir = IsolatedKeystore.getTrustStoreDir();
+    return path.join(dir, 'challenge-registry.lock');
+  }
+
+  /**
+   * Atomic write via temporary sibling file + rename to prevent torn writes (NEXT-B-20).
+   */
+  private static atomicWriteJson(filePath: string, data: unknown): void {
+    const tmpPath = `${filePath}.${process.pid}.${crypto.randomBytes(4).toString('hex')}.tmp`;
+    try {
+      fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), 'utf-8');
+      fs.renameSync(tmpPath, filePath);
+    } catch {
+      try {
+        if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
+      } catch {
+        // ignore cleanup error
+      }
+      try {
+        fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+      } catch {
+        // ignore fallback write error
+      }
+    }
+  }
+
+  /**
+   * Inter-process advisory lock with stale-lock eviction (NEXT-B-20).
+   */
+  static withFileLock<T>(fn: () => T): T {
+    const lockPath = this.getLockPath();
+    let acquiredFd: number | null = null;
+    const deadline = Date.now() + 2000;
+
+    while (Date.now() < deadline) {
+      try {
+        acquiredFd = fs.openSync(lockPath, 'wx');
+        fs.writeFileSync(acquiredFd, `${process.pid}:${Date.now()}`);
+        break;
+      } catch {
+        try {
+          const stat = fs.statSync(lockPath);
+          if (Date.now() - stat.mtimeMs > 10000) {
+            fs.unlinkSync(lockPath);
+          }
+        } catch {
+          // Lock was already released
+        }
+      }
+    }
+
+    try {
+      return fn();
+    } finally {
+      if (acquiredFd !== null) {
+        try {
+          fs.closeSync(acquiredFd);
+        } catch {
+          // ignore
+        }
+        try {
+          fs.unlinkSync(lockPath);
+        } catch {
+          // ignore
+        }
+      }
+    }
+  }
+
   static computeRecordHash(params: {
     recordIndex: number;
     challenge: string;
@@ -127,11 +197,7 @@ export class ChallengeRegistry {
       anchorIdentity,
     };
     const cpPath = this.getCheckpointPath();
-    try {
-      fs.writeFileSync(cpPath, JSON.stringify(checkpoint, null, 2), 'utf-8');
-    } catch {
-      // ignore write error
-    }
+    this.atomicWriteJson(cpPath, checkpoint);
     return checkpoint;
   }
 
@@ -187,12 +253,8 @@ export class ChallengeRegistry {
 
   private static save(): void {
     const filePath = this.getStoragePath();
-    try {
-      const records = Array.from(this.load().values());
-      fs.writeFileSync(filePath, JSON.stringify(records, null, 2), 'utf-8');
-    } catch {
-      // ignore write error
-    }
+    const records = Array.from(this.load().values());
+    this.atomicWriteJson(filePath, records);
   }
 
   static isConsumed(challenge: string): boolean {
@@ -207,38 +269,41 @@ export class ChallengeRegistry {
     challenge: string,
     metadata?: { verifierIdentity?: string; proofId?: string }
   ): ConsumedChallengeRecord {
-    const records = Array.from(this.load().values());
-    const recordIndex = records.length;
-    const previousRecordHash = recordIndex === 0
-      ? GENESIS_RECORD_HASH
-      : records[recordIndex - 1].recordHash || GENESIS_RECORD_HASH;
-    const consumedAt = new Date().toISOString();
-    const verifierIdentity = metadata?.verifierIdentity || 'intershader-verifier';
-    const proofId = metadata?.proofId;
+    return this.withFileLock(() => {
+      this.consumedRecords = null;
+      const records = Array.from(this.load().values());
+      const recordIndex = records.length;
+      const previousRecordHash = recordIndex === 0
+        ? GENESIS_RECORD_HASH
+        : records[recordIndex - 1].recordHash || GENESIS_RECORD_HASH;
+      const consumedAt = new Date().toISOString();
+      const verifierIdentity = metadata?.verifierIdentity || 'intershader-verifier';
+      const proofId = metadata?.proofId;
 
-    const recordHash = this.computeRecordHash({
-      recordIndex,
-      challenge: challenge.toLowerCase(),
-      consumedAt,
-      verifierIdentity,
-      proofId,
-      previousRecordHash,
+      const recordHash = this.computeRecordHash({
+        recordIndex,
+        challenge: challenge.toLowerCase(),
+        consumedAt,
+        verifierIdentity,
+        proofId,
+        previousRecordHash,
+      });
+
+      const record: ConsumedChallengeRecord = {
+        recordIndex,
+        challenge: challenge.toLowerCase(),
+        consumedAt,
+        verifierIdentity,
+        proofId,
+        previousRecordHash,
+        recordHash,
+        status: 'CONSUMED',
+      };
+      this.load().set(challenge.toLowerCase(), record);
+      this.save();
+      this.saveCheckpoint(verifierIdentity);
+      return record;
     });
-
-    const record: ConsumedChallengeRecord = {
-      recordIndex,
-      challenge: challenge.toLowerCase(),
-      consumedAt,
-      verifierIdentity,
-      proofId,
-      previousRecordHash,
-      recordHash,
-      status: 'CONSUMED',
-    };
-    this.load().set(challenge.toLowerCase(), record);
-    this.save();
-    this.saveCheckpoint(verifierIdentity);
-    return record;
   }
 
   static verifyRegistryIntegrity(): { isValid: boolean; error?: string } {

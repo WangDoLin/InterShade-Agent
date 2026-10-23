@@ -4,8 +4,8 @@
   "skills": {
     "agent-tool-executor": {
       "version": "1.0.0",
-      "upstreamUrl": "https://github.com/agentskills/agentskills/tree/main/skills/agent-executor",
-      "commitSha": "d4e5f67890123456789abcdef0123456789a1b2c",
+      "upstreamUrl": "",
+      "commitSha": "",
       "license": "Apache-2.0",
       "contentSha256": "2e323bc69735ee5e71fc5c12e287c62765d0eb1bbb4af6f7bafdba3940647321",
       "treeSha256": "5114bbaa3962255ca52b3f5a8ef0785889f1baca8f71b34c516ee9f8b3b63015",
@@ -15,7 +15,9 @@
         "filesystemWrite": true
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.125Z"
+      "lockedAt": "2026-10-16T16:06:32.125Z",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "architecture-stress-test": {
       "version": "1.0.0",
@@ -30,12 +32,14 @@
         "filesystemWrite": true
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "automl-tree-search-engineer": {
       "version": "1.0.0",
-      "upstreamUrl": "https://github.com/agentskills/agentskills/tree/main/skills/automl-tree-search-engineer",
-      "commitSha": "b2c3d4e5f67890123456789abcdef0123456789a",
+      "upstreamUrl": "",
+      "commitSha": "",
       "license": "Apache-2.0",
       "contentSha256": "c6d73f8ca68206a0c1fbbc4a6520d943f04b82044adf886855c22d4b51cfe0d5",
       "treeSha256": "ed9b5479af0651d25c61ecaae866854bdae7c8dcf1841e356158f054cfe53e38",
@@ -45,12 +49,14 @@
         "filesystemWrite": true
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "bio-ai-foundation-models": {
       "version": "1.0.0",
-      "upstreamUrl": "https://github.com/agentskills/agentskills/tree/main/skills/bio-ai-foundation-models",
-      "commitSha": "c3d4e5f67890123456789abcdef0123456789a1b",
+      "upstreamUrl": "",
+      "commitSha": "",
       "license": "Apache-2.0",
       "contentSha256": "ab1a285eeb3c0fd978930fa6ad8db243267e90334508bf6cb40e4d84dd38b62c",
       "treeSha256": "710711df9b828a5c35b0582a7aa0f915ca4bef5d888139e5d6fb9696577390c0",
@@ -60,12 +66,14 @@
         "filesystemWrite": true
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "cicd-deployment-orchestrator": {
       "version": "1.0.0",
-      "upstreamUrl": "https://github.com/agentskills/agentskills/tree/main/skills/cicd-orchestrator",
-      "commitSha": "f67890123456789abcdef0123456789a1b2c3d4e5",
+      "upstreamUrl": "",
+      "commitSha": "",
       "license": "Apache-2.0",
       "contentSha256": "aca72f4b9d37aad53d39383d956514e0e98c9284f1445b54cef3d982280310a2",
       "treeSha256": "1831fb7420854daa4ae32325769c81b78027693f5231d9fab253f353fe02cc1c",
@@ -75,12 +83,14 @@
         "filesystemWrite": true
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "cloud-provider-adapter": {
       "version": "1.0.0",
-      "upstreamUrl": "https://github.com/openai/plugins/tree/main/skills/cloud-adapter",
-      "commitSha": "e5f67890123456789abcdef0123456789a1b2c3d4",
+      "upstreamUrl": "",
+      "commitSha": "",
       "license": "Apache-2.0",
       "contentSha256": "cb8cb57b1e2d999424ab1013d1625d0f728d5d2ed32a8fae93c34750f27b60ff",
       "treeSha256": "0a6e54e3de9d6df8418b66882c907bcc94dc4ecc3c0385ee6782ba497102f8c7",
@@ -90,12 +100,14 @@
         "filesystemWrite": false
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "database-sql-optimizer": {
       "version": "1.0.0",
-      "upstreamUrl": "https://github.com/agentskills/agentskills/tree/main/skills/database-sql-optimizer",
-      "commitSha": "c2d3e4f5a6b7c8d9e0123456789abcdef012345a",
+      "upstreamUrl": "",
+      "commitSha": "",
       "license": "Apache-2.0",
       "contentSha256": "ca3ec0545632b6f45ab27c779d871431caf19298baf03af54279b9ebe44d8efc",
       "treeSha256": "d47461101fd77db5d35dfc3dca204c6018632f0d1b021c7931b4dedf817fa34a",
@@ -105,7 +117,9 @@
         "filesystemWrite": true
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "database-zero-downtime-migration": {
       "version": "1.0.0",
@@ -120,12 +134,14 @@
         "filesystemWrite": true
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "devops-docker-kubernetes": {
       "version": "1.0.0",
-      "upstreamUrl": "https://github.com/agentskills/agentskills/tree/main/skills/devops-docker-kubernetes",
-      "commitSha": "e4f5a6b7c8d9e0123456789abcdef012345a6b7c",
+      "upstreamUrl": "",
+      "commitSha": "",
       "license": "Apache-2.0",
       "contentSha256": "15dee2c1e15f2886e5f30e12679dfe51c47e9ddfd6f8d3648c2561edc0e7098d",
       "treeSha256": "49632c0afce855786c7131922b1bc4037c5e779ce144ae9d97749eb405552462",
@@ -135,7 +151,9 @@
         "filesystemWrite": true
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "documentation-auto-sync": {
       "version": "1.0.0",
@@ -150,12 +168,14 @@
         "filesystemWrite": true
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "fullstack-web-architect": {
       "version": "1.0.0",
-      "upstreamUrl": "https://github.com/agentskills/agentskills/tree/main/skills/fullstack-web-architect",
-      "commitSha": "b1c2d3e4f5a6b7c8d9e0123456789abcdef01234",
+      "upstreamUrl": "",
+      "commitSha": "",
       "license": "Apache-2.0",
       "contentSha256": "681bad1b6f9e594ca36ae0ebbb13432ee76bad838d906acfe1b0c410f14af8df",
       "treeSha256": "ec27b067f45f95fe6f7451cf754a6b1e7d41d9e7c6d91c7da6ed08dba503192d",
@@ -165,12 +185,14 @@
         "filesystemWrite": true
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "git-workflow-pro": {
       "version": "1.0.0",
-      "upstreamUrl": "https://github.com/agentskills/agentskills/tree/main/skills/git-workflow-pro",
-      "commitSha": "a6b7c8d9e0123456789abcdef012345a6b7c8d9e",
+      "upstreamUrl": "",
+      "commitSha": "",
       "license": "Apache-2.0",
       "contentSha256": "724683430a0f90bf24eb69a7874b95cbaf6db28a29c9756bebebc9e9df151bf0",
       "treeSha256": "c0695b982dbd4312a4b9e13f05cb0f8b28c510209d89b9b66b5cef5ca6ba56a8",
@@ -180,12 +202,14 @@
         "filesystemWrite": true
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "performance-profiler-debugger": {
       "version": "1.0.0",
-      "upstreamUrl": "https://github.com/agentskills/agentskills/tree/main/skills/performance-profiler-debugger",
-      "commitSha": "f5a6b7c8d9e0123456789abcdef012345a6b7c8d",
+      "upstreamUrl": "",
+      "commitSha": "",
       "license": "Apache-2.0",
       "contentSha256": "cf23bb4525191136ba5b56c2a53e9f21223d11bf9b59c36f0fb87cbe79641480",
       "treeSha256": "2c0706dcf2dddc34edd2c77bcaa7f79927485068d2d1226ef60f0c4147f40ed6",
@@ -195,12 +219,14 @@
         "filesystemWrite": true
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "python-advanced-engineer": {
       "version": "1.0.0",
-      "upstreamUrl": "https://github.com/agentskills/agentskills/tree/main/skills/python-advanced-engineer",
-      "commitSha": "d3e4f5a6b7c8d9e0123456789abcdef012345a6b",
+      "upstreamUrl": "",
+      "commitSha": "",
       "license": "Apache-2.0",
       "contentSha256": "965891c0f9aca4097428503273b99654ab2c2cdf793ceae283b81b693fb9d034",
       "treeSha256": "cc9b60734ef4faf88862cede4a6cb42fc5922f5159b34470e63ab8fddbbe74de",
@@ -210,12 +236,14 @@
         "filesystemWrite": true
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "pytorch-deep-learning-architect": {
       "version": "1.0.0",
-      "upstreamUrl": "https://github.com/agentskills/agentskills/tree/main/skills/pytorch-deep-learning-architect",
-      "commitSha": "a1b2c3d4e5f67890123456789abcdef012345678",
+      "upstreamUrl": "",
+      "commitSha": "",
       "license": "Apache-2.0",
       "contentSha256": "ca5dc72b9bb4f110ef5e47075d1c4c613933c19dc4da99dddb8d62d9199b96e1",
       "treeSha256": "b824f39859f697c1d4715ea7bb127bc119915b2b56dc497cdcf0ae084ece333d",
@@ -225,12 +253,14 @@
         "filesystemWrite": true
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "security-audit-snyk-guard": {
       "version": "1.0.0",
-      "upstreamUrl": "https://github.com/snyk/agent-scan",
-      "commitSha": "5c8d3e2a1b9f708192a3b4c5d6e7f80123456789",
+      "upstreamUrl": "",
+      "commitSha": "",
       "license": "Apache-2.0",
       "contentSha256": "ee3a8fed24ec2e4d1102466e84d246c7465c9271527b183d839c901c8b3bcaaa",
       "treeSha256": "09e501a165d9b7a81c6325892535eb0093b12a97b3c817f2f209ed12f938aab7",
@@ -240,7 +270,9 @@
         "filesystemWrite": false
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "security-differential-review": {
       "version": "1.0.0",
@@ -255,12 +287,14 @@
         "filesystemWrite": false
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "test-automation-vitest": {
       "version": "1.0.0",
-      "upstreamUrl": "https://github.com/anthropics/skills/tree/main/skills/webapp-testing",
-      "commitSha": "7b2c9e1054321fedcba9876543210fedcba98765",
+      "upstreamUrl": "",
+      "commitSha": "",
       "license": "Apache-2.0",
       "contentSha256": "64dc5acae0accda0b2be16d792bea3b2577304d65e343e7a1c7d40f7e68812b1",
       "treeSha256": "ace7a1f54e1660019d6d742b7643a10d68593865c4d1d0191514e264bd56cd79",
@@ -270,7 +304,9 @@
         "filesystemWrite": true
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "test-driven-acceptance-gate": {
       "version": "1.0.0",
@@ -285,12 +321,14 @@
         "filesystemWrite": true
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "typescript-nodejs-analyzer": {
       "version": "1.0.0",
-      "upstreamUrl": "https://github.com/agentskills/agentskills/tree/main/skills/typescript-analyzer",
-      "commitSha": "a3f89b4c2e1d7065983210456789abcdef012345",
+      "upstreamUrl": "",
+      "commitSha": "",
       "license": "Apache-2.0",
       "contentSha256": "e4125673508fe1e475f5efe8003784eafe6858f51083a16d12d8ee156b3038c5",
       "treeSha256": "97f4e28c9be284b443ac2aee1fa56cc152fd3ff938e65b392dbe8c59c2136344",
@@ -300,7 +338,9 @@
         "filesystemWrite": false
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "builtin",
+      "provenance": "LOCAL-ONLY"
     },
     "architecture-review": {
       "version": "1.0.0",
@@ -315,7 +355,9 @@
         "filesystemWrite": false
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "global",
+      "provenance": "LOCAL-ONLY"
     },
     "banner-design": {
       "version": "1.0.0",
@@ -330,7 +372,9 @@
         "filesystemWrite": false
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "global",
+      "provenance": "LOCAL-ONLY"
     },
     "brainstorming": {
       "version": "1.0.0",
@@ -345,7 +389,9 @@
         "filesystemWrite": false
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "global",
+      "provenance": "LOCAL-ONLY"
     },
     "brand": {
       "version": "1.0.0",
@@ -360,7 +406,9 @@
         "filesystemWrite": false
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "global",
+      "provenance": "LOCAL-ONLY"
     },
     "code-review": {
       "version": "1.0.0",
@@ -375,7 +423,9 @@
         "filesystemWrite": false
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "global",
+      "provenance": "LOCAL-ONLY"
     },
     "dependency-audit": {
       "version": "1.0.0",
@@ -390,7 +440,9 @@
         "filesystemWrite": false
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "global",
+      "provenance": "LOCAL-ONLY"
     },
     "design": {
       "version": "1.0.0",
@@ -405,7 +457,9 @@
         "filesystemWrite": false
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "global",
+      "provenance": "LOCAL-ONLY"
     },
     "design-system": {
       "version": "1.0.0",
@@ -420,7 +474,9 @@
         "filesystemWrite": false
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "global",
+      "provenance": "LOCAL-ONLY"
     },
     "documentation-sync": {
       "version": "1.0.0",
@@ -435,7 +491,9 @@
         "filesystemWrite": false
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "global",
+      "provenance": "LOCAL-ONLY"
     },
     "github": {
       "version": "1.0.0",
@@ -450,7 +508,9 @@
         "filesystemWrite": false
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "global",
+      "provenance": "LOCAL-ONLY"
     },
     "impeccable": {
       "version": "4.1.3",
@@ -465,7 +525,9 @@
         "filesystemWrite": false
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "global",
+      "provenance": "LOCAL-ONLY"
     },
     "incident-response": {
       "version": "1.0.0",
@@ -480,7 +542,9 @@
         "filesystemWrite": false
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "global",
+      "provenance": "LOCAL-ONLY"
     },
     "knowledge-base-update": {
       "version": "1.0.0",
@@ -495,7 +559,9 @@
         "filesystemWrite": false
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "global",
+      "provenance": "LOCAL-ONLY"
     },
     "project-context-primer": {
       "version": "1.0.0",
@@ -510,7 +576,9 @@
         "filesystemWrite": false
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "global",
+      "provenance": "LOCAL-ONLY"
     },
     "prompt-enhancer": {
       "version": "1.0.0",
@@ -525,7 +593,9 @@
         "filesystemWrite": false
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "global",
+      "provenance": "LOCAL-ONLY"
     },
     "slides": {
       "version": "1.0.0",
@@ -540,7 +610,9 @@
         "filesystemWrite": false
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.126Z"
+      "lockedAt": "2026-10-16T16:06:32.126Z",
+      "origin": "global",
+      "provenance": "LOCAL-ONLY"
     },
     "test-driven-execution": {
       "version": "1.0.0",
@@ -555,7 +627,9 @@
         "filesystemWrite": false
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.127Z"
+      "lockedAt": "2026-10-16T16:06:32.127Z",
+      "origin": "global",
+      "provenance": "LOCAL-ONLY"
     },
     "ui-styling": {
       "version": "1.0.0",
@@ -570,7 +644,9 @@
         "filesystemWrite": false
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.127Z"
+      "lockedAt": "2026-10-16T16:06:32.127Z",
+      "origin": "global",
+      "provenance": "LOCAL-ONLY"
     },
     "ui-ux-pro-max": {
       "version": "1.0.0",
@@ -585,7 +661,9 @@
         "filesystemWrite": false
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.127Z"
+      "lockedAt": "2026-10-16T16:06:32.127Z",
+      "origin": "global",
+      "provenance": "LOCAL-ONLY"
     },
     "web-design-guidelines": {
       "version": "1.0.0",
@@ -600,7 +678,9 @@
         "filesystemWrite": false
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.127Z"
+      "lockedAt": "2026-10-16T16:06:32.127Z",
+      "origin": "global",
+      "provenance": "LOCAL-ONLY"
     },
     "writing-plans": {
       "version": "1.0.0",
@@ -615,7 +695,9 @@
         "filesystemWrite": false
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.127Z"
+      "lockedAt": "2026-10-16T16:06:32.127Z",
+      "origin": "global",
+      "provenance": "LOCAL-ONLY"
     },
     "skill-creator": {
       "version": "1.0.0",
@@ -630,7 +712,9 @@
         "filesystemWrite": false
       },
       "auditStatus": "PASSED",
-      "lockedAt": "2026-10-16T16:06:32.127Z"
+      "lockedAt": "2026-10-16T16:06:32.127Z",
+      "origin": "global",
+      "provenance": "LOCAL-ONLY"
     }
   }
 }

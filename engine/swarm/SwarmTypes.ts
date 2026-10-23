@@ -21,11 +21,20 @@ export interface DepartmentContract {
   publishedAt: number;
 }
 
-export interface DepartmentBlackboardEntry {
+export type BlackboardCategory =
+  | 'contract'
+  | 'endpoint'
+  | 'test_result'
+  | 'security_finding'
+  | 'literature_baseline'
+  | 'state';
+
+export interface DepartmentBlackboardEntry<T = any> {
   key: string;
-  category: 'contract' | 'endpoint' | 'test_result' | 'security_finding' | 'literature_baseline' | 'state';
+  category: BlackboardCategory;
   authorRole: SwarmRole;
-  data: any;
+  data: T;
+  version?: number;
   timestamp: number;
 }
 
@@ -62,6 +71,7 @@ export interface FileLease {
   filePath: string;
   sessionId: string;
   role: SwarmRole | ClaudeAgentRoleType;
+  fencingToken: number;
   grantedAt: number;
   expiresAt: number;
 }
@@ -102,11 +112,27 @@ export interface SwarmProgressEvent {
   totalCount: number;
 }
 
+export interface MergeProposal {
+  proposalId: string;
+  baseBranch: string;
+  candidateBranches: Array<{
+    taskId: string;
+    role: string;
+    branch: string;
+    worktreePath: string;
+    modifiedFiles: string[];
+  }>;
+  collisionCheckPassed: boolean;
+  collisions: Array<{ file: string; branches: string[] }>;
+  createdAt: number;
+}
+
 export interface SwarmMergeResult {
   success: boolean;
   mergedBranches: string[];
   failedBranches: Array<{ branch: string; reason: string }>;
   verificationPassed: boolean;
   testOutput?: string;
+  proposal?: MergeProposal;
   message: string;
 }

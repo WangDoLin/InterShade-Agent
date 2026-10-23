@@ -40,6 +40,20 @@ async function runTestSuite() {
   console.log('NaN Loss Diagnosis:', nanPlan.detectedError === 'NAN_LOSS' ? 'PASS' : 'FAIL');
   if (nanPlan.detectedError !== 'NAN_LOSS') throw new Error('NaN loss detection failed');
 
+  // Test 1b: Supervised Local Execution Package Allowlist & Safe Environment (NEXT-B-13..14)
+  const validDepCheck = PyTorchExecutionKernel.validateDependencies(['torch==2.5.1', 'numpy']);
+  if (!validDepCheck.valid) throw new Error('Valid dependency check failed');
+  const blockedInjection = PyTorchExecutionKernel.validateDependencies(['torch; rm -rf /']);
+  if (blockedInjection.valid) throw new Error('Shell metacharacter dependency must be rejected');
+  const blockedUnlisted = PyTorchExecutionKernel.validateDependencies(['malicious-unknown-pkg']);
+  if (blockedUnlisted.valid) throw new Error('Unlisted dependency must be rejected');
+  const safeEnv = PyTorchExecutionKernel.buildSafeMlEnv({
+    OPENAI_API_KEY: 'should-be-stripped',
+    CUSTOM_BATCH_SIZE: '32',
+  });
+  if (safeEnv.OPENAI_API_KEY) throw new Error('buildSafeMlEnv must strip API keys');
+  if (safeEnv.CUSTOM_BATCH_SIZE !== '32') throw new Error('buildSafeMlEnv must preserve safe custom vars');
+
   // -------------------------------------------------------------
   // Test 2: ML Causal Loop & Solution Tree Search (AIDE Pattern)
   // -------------------------------------------------------------

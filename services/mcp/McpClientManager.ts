@@ -6,6 +6,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import type { ToolDefinition, ToolExecutionContext } from '../../types/index.js';
 import type { ToolRegistry } from '../../tools/ToolRegistry.js';
+import { attachRawJsonSchema } from '../../providers/zodHelper.js';
 
 export interface McpServerConfig {
   command: string;
@@ -149,7 +150,10 @@ export class McpClientManager {
             const adaptedTool: ToolDefinition<any, any> = {
               name: toolName,
               description: `[MCP: ${serverName}] ${mcpTool.description || 'External MCP tool'}`,
-              inputSchema: z.record(z.any()),
+              inputSchema: attachRawJsonSchema(
+                z.record(z.string(), z.unknown()),
+                mcpTool.inputSchema as Record<string, unknown> | undefined
+              ),
               isReadOnly,
               isDestructive,
               requiresPermission,

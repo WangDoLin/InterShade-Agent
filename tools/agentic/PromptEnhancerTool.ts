@@ -54,7 +54,7 @@ export class PromptEnhancerTool extends BaseTool<PromptEnhancerArgs, string> {
       .enum(['ml_deep_learning', 'biological_genomics', 'software_engineering'])
       .optional()
       .describe('Domain specialization for tailored heuristic expansion'),
-    assumptions: z.record(z.string()).optional().describe('Optional user assumptions or constraints to incorporate'),
+    assumptions: z.record(z.string(), z.string()).optional().describe('Optional user assumptions or constraints to incorporate'),
   });
 
   async execute(args: PromptEnhancerArgs, context: ToolExecutionContext): Promise<string> {

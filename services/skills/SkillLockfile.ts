@@ -38,6 +38,8 @@ export interface SkillPackage {
 
 export interface SkillLockEntry {
   version: string;
+  origin?: 'builtin' | 'upstream' | 'global' | 'workspace';
+  provenance?: 'VERIFIED' | 'LOCAL-ONLY' | 'UNVERIFIABLE';
   upstreamUrl: string;
   commitSha: string;
   license: string;
@@ -142,6 +144,13 @@ export class SkillLockfile {
       };
     }
 
+    if (entry.auditStatus === 'QUARANTINED' || entry.auditStatus === 'FAILED') {
+      return {
+        valid: false,
+        reason: `Skill '${skill.metadata.name}' has auditStatus=${entry.auditStatus} in ${this.DEFAULT_FILENAME}.`,
+      };
+    }
+
     if (entry.contentSha256 !== skill.contentSha256) {
       return {
         valid: false,
@@ -156,7 +165,12 @@ export class SkillLockfile {
       };
     }
 
-    if (entry.commitSha && skill.metadata.commitSha && entry.commitSha !== skill.metadata.commitSha) {
+    if (
+      entry.origin !== 'builtin' &&
+      entry.commitSha &&
+      skill.metadata.commitSha &&
+      entry.commitSha !== skill.metadata.commitSha
+    ) {
       return {
         valid: false,
         reason: `Pinned commit SHA mismatch for '${skill.metadata.name}'. Expected: ${entry.commitSha}, actual: ${skill.metadata.commitSha}.`,

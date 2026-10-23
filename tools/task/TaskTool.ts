@@ -21,7 +21,7 @@ const TaskInputSchema = z.object({
     .describe('Present continuous verb shown in UI spinner when in_progress, e.g. "Running unit tests"'),
   blocks: z.array(z.string()).optional().describe('IDs of tasks that cannot start until this task is completed'),
   blockedBy: z.array(z.string()).optional().describe('IDs of tasks that must complete before this task can start'),
-  metadata: z.record(z.unknown()).optional().describe('Optional key-value metadata to attach to the task'),
+  metadata: z.record(z.string(), z.unknown()).optional().describe('Optional key-value metadata to attach to the task'),
 });
 
 type TaskInput = z.infer<typeof TaskInputSchema>;

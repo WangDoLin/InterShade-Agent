@@ -1,9 +1,14 @@
 import http from 'node:http';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { SkillCrystallizer } from '../services/skills/SkillCrystallizer.js';
 import { FtsMemoryService } from '../services/memory/FtsMemoryService.js';
 import { TrajectoryRecorder } from '../services/memory/TrajectoryRecorder.js';
+import { SecretScrubber } from '../security/SecretScrubber.js';
+import { TelegramAdapter, type TelegramWebhookPayload } from './adapters/TelegramAdapter.js';
+import { ApprovalStore } from './ApprovalStore.js';
 import {
   type GatewayConfig,
   type GatewayServerOptions,
@@ -91,6 +96,10 @@ export class GatewayServer extends EventEmitter {
   private workspaceDir: string;
   private isRunning = false;
   private rateLimiter: FixedWindowRateLimiter;
+  private approvalStore: ApprovalStore;
+  private seenUpdateIds: number[] = [];
+  private highWaterUpdateId = -1;
+  private replayStateFile: string;
 
   constructor(options: GatewayServerOptions) {
     super();
@@ -101,6 +110,56 @@ export class GatewayServer extends EventEmitter {
       this.config.rateLimit.windowMs,
       this.config.rateLimit.maxPerWindow,
     );
+    const stateDir = path.join(this.workspaceDir, '.intershader', 'state');
+    this.approvalStore = new ApprovalStore({ stateDir });
+    this.replayStateFile = path.join(stateDir, 'telegram-replay-window.json');
+    this.loadReplayState();
+  }
+
+  getApprovalStore(): ApprovalStore {
+    return this.approvalStore;
+  }
+
+  private loadReplayState(): void {
+    try {
+      if (fs.existsSync(this.replayStateFile)) {
+        const raw = JSON.parse(fs.readFileSync(this.replayStateFile, 'utf8')) as {
+          highWaterUpdateId?: number;
+          seenUpdateIds?: number[];
+        };
+        if (typeof raw.highWaterUpdateId === 'number') {
+          this.highWaterUpdateId = raw.highWaterUpdateId;
+        }
+        if (Array.isArray(raw.seenUpdateIds)) {
+          this.seenUpdateIds = raw.seenUpdateIds.slice(-this.config.telegram.replayWindowUpdates);
+        }
+      }
+    } catch {
+      // Ignore corrupt or missing replay state file
+    }
+  }
+
+  private persistReplayUpdateId(updateId: number): void {
+    this.seenUpdateIds.push(updateId);
+    if (this.seenUpdateIds.length > this.config.telegram.replayWindowUpdates) {
+      this.seenUpdateIds.shift();
+    }
+    if (updateId > this.highWaterUpdateId) {
+      this.highWaterUpdateId = updateId;
+    }
+    try {
+      fs.mkdirSync(path.dirname(this.replayStateFile), { recursive: true });
+      fs.writeFileSync(
+        this.replayStateFile,
+        JSON.stringify({
+          highWaterUpdateId: this.highWaterUpdateId,
+          seenUpdateIds: this.seenUpdateIds,
+        }),
+        'utf8',
+      );
+    } catch {
+      // Non-fatal in ephemeral test directories
+    }
   }
 
   /**
@@ -153,6 +212,15 @@ export class GatewayServer extends EventEmitter {
   }
 
   /**
+   * Sends a JSON response scrubbed through SecretScrubber so no secret ever leaves the gateway boundary (NEXT-B-08).
+   */
+  private sendJson(res: http.ServerResponse, statusCode: number, body: unknown): void {
+    const scrubbedBody = SecretScrubber.scrubObject(body);
+    res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(scrubbedBody));
+  }
+
+  /**
    * Starts the headless Gateway HTTP daemon bound to the configured host (127.0.0.1 by default).
    */
   start(): Promise<number> {
@@ -167,12 +235,116 @@ export class GatewayServer extends EventEmitter {
 
         const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
         const isStatusRoute = req.method === 'GET' && url.pathname === '/api/status';
+        const isHealthzRoute = req.method === 'GET' && url.pathname === '/healthz';
+        const isReadyzRoute = req.method === 'GET' && url.pathname === '/readyz';
+        const isTelegramWebhookRoute = req.method === 'POST' && url.pathname === '/telegram/webhook';
         const isAuthenticated = this.isRequestAuthenticated(req);
+
+        // Liveness probe (/healthz) and Readiness probe (/readyz) (Section C4)
+        if (isHealthzRoute) {
+          this.sendJson(res, 200, {
+            status: 'ok',
+            uptimeMs: Math.round(process.uptime() * 1000),
+            timestamp: Date.now(),
+            requestId,
+          });
+          return;
+        }
+
+        if (isReadyzRoute) {
+          let dbReady = true;
+          try {
+            FtsMemoryService.searchMemories('healthcheck', { limit: 1 });
+          } catch {
+            dbReady = false;
+          }
+          const status = dbReady && this.isRunning ? 200 : 503;
+          this.sendJson(res, status, {
+            ready: status === 200,
+            components: {
+              gateway: this.isRunning ? 'up' : 'down',
+              sqliteFts: dbReady ? 'up' : 'down',
+              telegramWebhook: this.config.telegram.enabled ? 'enabled' : 'disabled',
+            },
+            timestamp: Date.now(),
+            requestId,
+          });
+          return;
+        }
+
+        // Dedicated 3-layer authentication for Telegram Webhook (NEXT-B-02..03)
+        if (isTelegramWebhookRoute) {
+          const tgHeader = req.headers['x-telegram-bot-api-secret-token'];
+          const candidateSecret = Array.isArray(tgHeader) ? tgHeader[0] : tgHeader;
+          if (!verifyGatewayToken(candidateSecret, this.config.telegram.webhookSecretHash)) {
+            this.sendJson(res, 401, { success: false, error: 'UNAUTHORIZED_TELEGRAM_WEBHOOK', requestId });
+            return;
+          }
+
+          let rawBody: string;
+          try {
+            rawBody = await readBodyWithLimit(req, this.config.limits.maxBodyBytes);
+          } catch (readErr: unknown) {
+            const statusCode = (readErr as { statusCode?: number })?.statusCode ?? 400;
+            this.sendJson(res, statusCode, {
+              success: false,
+              error: statusCode === 413 ? 'TOO_LARGE' : 'BAD_REQUEST',
+              requestId,
+            });
+            return;
+          }
+
+          let payload: TelegramWebhookPayload;
+          try {
+            payload = JSON.parse(rawBody || '{}') as TelegramWebhookPayload;
+          } catch {
+            this.sendJson(res, 400, { success: false, error: 'BAD_REQUEST', requestId });
+            return;
+          }
+
+          const parsed = TelegramAdapter.parseWebhookUpdate(payload);
+
+          // Layer 2: User & Chat Allowlist (silent 200 drop on unauthorized user/chat)
+          const { allowedUserIds, allowedChatIds } = this.config.telegram;
+          if (
+            (allowedUserIds.length > 0 && (parsed.senderId === undefined || !allowedUserIds.includes(parsed.senderId))) ||
+            (allowedChatIds.length > 0 && (parsed.chatId === undefined || !allowedChatIds.includes(parsed.chatId)))
+          ) {
+            this.emit('telegram_audit', {
+              event: 'allowlist_drop',
+              senderId: parsed.senderId,
+              chatId: parsed.chatId,
+              updateId: parsed.updateId,
+            });
+            this.sendJson(res, 200, { ok: true, ignored: 'allowlist', requestId });
+            return;
+          }
+
+          // Layer 3: Replay window & monotonic update_id check
+          if (
+            typeof parsed.updateId !== 'number' ||
+            this.seenUpdateIds.includes(parsed.updateId) ||
+            parsed.updateId <= this.highWaterUpdateId
+          ) {
+            this.emit('telegram_audit', {
+              event: 'replay_drop',
+              senderId: parsed.senderId,
+              chatId: parsed.chatId,
+              updateId: parsed.updateId,
+            });
+            this.sendJson(res, 200, { ok: true, ignored: 'replay', requestId });
+            return;
+          }
+          this.persistReplayUpdateId(parsed.updateId);
+
+          this.emit('telegram_update', parsed);
+          this.sendJson(res, 200, { ok: true, updateId: parsed.updateId, requestId });
+          return;
+        }
 
         // Enforce authentication before rate-limiting (Plan §4.8.4 #2) for all protected routes
         if (!isStatusRoute && !isAuthenticated) {
-          res.writeHead(401, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: false, error: 'UNAUTHORIZED', requestId }));
+          this.sendJson(res, 401, { success: false, error: 'UNAUTHORIZED', requestId });
           return;
         }
 
@@ -182,8 +354,7 @@ export class GatewayServer extends EventEmitter {
         const rateCost = isPromptRoute ? 5 : 1;
 
         if (!this.rateLimiter.allow(rateLimitKey, rateCost)) {
-          res.writeHead(429, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: false, error: 'RATE_LIMITED', requestId }));
+          this.sendJson(res, 429, { success: false, error: 'RATE_LIMITED', requestId });
           return;
         }
 
@@ -212,16 +383,14 @@ export class GatewayServer extends EventEmitter {
               data,
             };
 
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify(payload));
+            this.sendJson(res, 200, payload);
             return;
           }
 
           // 2. Crystallized Skills registry
           if (req.method === 'GET' && url.pathname === '/api/skills') {
             const skills = SkillCrystallizer.loadSkills(this.workspaceDir);
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: true, skills, requestId }));
+            this.sendJson(res, 200, { success: true, skills, requestId });
             return;
           }
 
@@ -229,8 +398,7 @@ export class GatewayServer extends EventEmitter {
           if (req.method === 'GET' && url.pathname === '/api/memories/search') {
             const q = (url.searchParams.get('q') || '').slice(0, 512);
             const results = FtsMemoryService.searchMemories(q, { limit: 10 });
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: true, results, requestId }));
+            this.sendJson(res, 200, { success: true, results, requestId });
             return;
           }
 
@@ -242,8 +410,7 @@ export class GatewayServer extends EventEmitter {
             } catch (readErr: unknown) {
               const statusCode = (readErr as { statusCode?: number })?.statusCode ?? 400;
               const errorCode = statusCode === 413 ? 'TOO_LARGE' : 'BAD_REQUEST';
-              res.writeHead(statusCode, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ success: false, error: errorCode, requestId }));
+              this.sendJson(res, statusCode, { success: false, error: errorCode, requestId });
               return;
             }
 
@@ -251,28 +418,23 @@ export class GatewayServer extends EventEmitter {
             try {
               parsedBody = JSON.parse(rawBody || '{}') as Record<string, unknown>;
             } catch {
-              res.writeHead(400, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ success: false, error: 'BAD_REQUEST', requestId }));
+              this.sendJson(res, 400, { success: false, error: 'BAD_REQUEST', requestId });
               return;
             }
 
             const promptText = typeof parsedBody.prompt === 'string' ? parsedBody.prompt.trim() : '';
             if (!promptText) {
-              res.writeHead(400, { 'Content-Type': 'application/json' });
-              res.end(
-                JSON.stringify({
-                  success: false,
-                  error: 'BAD_REQUEST',
-                  message: 'Missing prompt in request body.',
-                  requestId,
-                }),
-              );
+              this.sendJson(res, 400, {
+                success: false,
+                error: 'BAD_REQUEST',
+                message: 'Missing prompt in request body.',
+                requestId,
+              });
               return;
             }
 
             if (promptText.length > this.config.limits.maxPromptChars) {
-              res.writeHead(413, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ success: false, error: 'TOO_LARGE', requestId }));
+              this.sendJson(res, 413, { success: false, error: 'TOO_LARGE', requestId });
               return;
             }
 
@@ -285,7 +447,7 @@ export class GatewayServer extends EventEmitter {
             const msg: GatewayMessage = {
               sessionId: typeof parsedBody.sessionId === 'string' ? parsedBody.sessionId : 'gateway-default',
               source,
-              prompt: promptText,
+              prompt: SecretScrubber.sanitize(promptText),
               senderId: typeof parsedBody.senderId === 'string' ? parsedBody.senderId : undefined,
               // Remote prompts never inherit local bypassPermissions without explicit approval
               requiresApprovalForDestructiveTools: source !== 'cli',
@@ -293,24 +455,19 @@ export class GatewayServer extends EventEmitter {
 
             this.emit('user_prompt', msg);
 
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(
-              JSON.stringify({
-                success: true,
-                message: 'Prompt enqueued for processing.',
-                sessionId: msg.sessionId,
-                requestId,
-              }),
-            );
+            this.sendJson(res, 200, {
+              success: true,
+              message: 'Prompt enqueued for processing.',
+              sessionId: msg.sessionId,
+              requestId,
+            });
             return;
           }
 
-          res.writeHead(404, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: false, error: 'NOT_FOUND', requestId }));
+          this.sendJson(res, 404, { success: false, error: 'NOT_FOUND', requestId });
         } catch {
           if (!res.headersSent) {
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: false, error: 'INTERNAL', requestId }));
+            this.sendJson(res, 500, { success: false, error: 'INTERNAL', requestId });
           }
         }
       });

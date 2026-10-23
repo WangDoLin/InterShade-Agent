@@ -1,3 +1,7 @@
+import { randomUUID } from 'node:crypto';
+import { getDatabase } from '../../state/Database.js';
+import { ModelCatalogStore } from '../../providers/catalog/ModelCatalogStore.js';
+
 export type ModelCapability =
   | 'complex_reasoning'
   | 'fast_scan'
@@ -30,6 +34,32 @@ export interface ModelProfile {
   telemetryProvenance?: TelemetryProvenance;
 }
 
+export interface ModelStatInput {
+  sessionId?: string;
+  modelId: string;
+  provider?: string;
+  taskType?: string;
+  latencyMs: number;
+  inputTokens: number;
+  outputTokens: number;
+  cachedInputTokens?: number;
+  costUsd?: number;
+  toolCallSuccess: boolean;
+  proofGatePassed?: boolean;
+  computedFrom?: string;
+}
+
+export interface AggregatedModelStats {
+  modelId: string;
+  totalRuns: number;
+  avgLatencyMs: number;
+  toolCallSuccessRate: number;
+  proofPassRate: number | null;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalCostUsd: number;
+}
+
 export interface TaskRequirements {
   readonly prompt: string;
   readonly estimatedTokens?: number;
@@ -50,8 +80,8 @@ export class CapabilityModelRegistry {
         provider: 'gemini',
         contextWindow: 1_048_576,
         capabilities: new Set(['fast_scan', 'large_context', 'tool_calling', 'computer_use', 'ast_surgical_edit']),
-        costPer1kInputUsd: 0.0001,
-        costPer1kOutputUsd: 0.0004,
+        costPer1kInputUsd: 0.00015,
+        costPer1kOutputUsd: 0.0006,
         latencyTier: 'ULTRA_LOW',
         historicalPassRate: null,
         totalTasksExecuted: 0,
@@ -120,6 +150,37 @@ export class CapabilityModelRegistry {
   ]);
 
   /**
+   * Calculate token cost in USD using the unified ModelCatalogStore pricing source of truth (NEXT-C-19).
+   */
+  static calculateCostUsd(
+    modelId: string,
+    inputTokens: number,
+    outputTokens: number,
+    cachedInputTokens: number = 0
+  ): number {
+    const desc = ModelCatalogStore.findByModelId(modelId);
+    if (desc?.pricing) {
+      const regularInput = Math.max(0, inputTokens - cachedInputTokens);
+      const cachedRate = desc.pricing.cachedInputPer1MUsd ?? desc.pricing.inputPer1MUsd;
+      const cost =
+        (regularInput / 1_000_000) * desc.pricing.inputPer1MUsd +
+        (cachedInputTokens / 1_000_000) * cachedRate +
+        (outputTokens / 1_000_000) * desc.pricing.outputPer1MUsd;
+      return Number(cost.toFixed(8));
+    }
+
+    const profile = this.models.get(modelId);
+    if (profile) {
+      const cost =
+        (inputTokens / 1000) * profile.costPer1kInputUsd +
+        (outputTokens / 1000) * profile.costPer1kOutputUsd;
+      return Number(cost.toFixed(8));
+    }
+
+    return 0;
+  }
+
+  /**
    * Register or update model profile
    */
   static registerModel(profile: ModelProfile): void {
@@ -127,21 +188,136 @@ export class CapabilityModelRegistry {
   }
 
   /**
+   * Persist a real model execution telemetry record into SQLite `model_stats` and update in-memory profile (NEXT-C-18).
+   */
+  static recordModelStat(stat: ModelStatInput): string {
+    const id = randomUUID();
+    const profile = this.models.get(stat.modelId);
+    const provider = stat.provider || profile?.provider || 'unknown';
+    const taskType = stat.taskType || 'general';
+    const costUsd =
+      stat.costUsd ??
+      this.calculateCostUsd(
+        stat.modelId,
+        stat.inputTokens,
+        stat.outputTokens,
+        stat.cachedInputTokens ?? 0
+      );
+
+    try {
+      const db = getDatabase();
+      db.prepare(`
+        INSERT INTO model_stats (
+          id, session_id, model_id, provider, task_type,
+          latency_ms, input_tokens, output_tokens, cost_usd,
+          tool_call_success, proof_gate_passed, recorded_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        id,
+        stat.sessionId || null,
+        stat.modelId,
+        provider,
+        taskType,
+        Math.max(0, Math.round(stat.latencyMs)),
+        Math.max(0, Math.round(stat.inputTokens)),
+        Math.max(0, Math.round(stat.outputTokens)),
+        costUsd,
+        stat.toolCallSuccess ? 1 : 0,
+        stat.proofGatePassed === undefined ? null : stat.proofGatePassed ? 1 : 0,
+        Date.now()
+      );
+    } catch {
+      // Non-blocking if DB is unavailable
+    }
+
+    if (profile && stat.proofGatePassed !== undefined) {
+      const prevTotal = profile.totalTasksExecuted;
+      const prevPassed =
+        profile.historicalPassRate !== null ? (profile.historicalPassRate / 100) * prevTotal : 0;
+      const nextTotal = prevTotal + 1;
+      const nextPassed = prevPassed + (stat.proofGatePassed ? 1 : 0);
+      profile.totalTasksExecuted = nextTotal;
+      profile.historicalPassRate = Number(((nextPassed / nextTotal) * 100).toFixed(2));
+      profile.telemetryProvenance = {
+        computedFrom: stat.computedFrom || `model_stats:${id}`,
+        computedAt: new Date().toISOString(),
+      };
+    }
+
+    return id;
+  }
+
+  /**
+   * Query aggregated empirical telemetry from SQLite `model_stats` for a model (NEXT-C-18).
+   */
+  static getAggregatedStats(modelId: string): AggregatedModelStats {
+    try {
+      const db = getDatabase();
+      const row = db
+        .prepare(`
+          SELECT
+            COUNT(*) as totalRuns,
+            AVG(latency_ms) as avgLatencyMs,
+            AVG(tool_call_success) as toolCallSuccessRatio,
+            AVG(CASE WHEN proof_gate_passed IS NOT NULL THEN proof_gate_passed END) as proofPassRatio,
+            SUM(input_tokens) as totalInputTokens,
+            SUM(output_tokens) as totalOutputTokens,
+            SUM(cost_usd) as totalCostUsd
+          FROM model_stats
+          WHERE model_id = ?
+        `)
+        .get(modelId) as {
+        totalRuns: number;
+        avgLatencyMs: number | null;
+        toolCallSuccessRatio: number | null;
+        proofPassRatio: number | null;
+        totalInputTokens: number | null;
+        totalOutputTokens: number | null;
+        totalCostUsd: number | null;
+      };
+
+      const totalRuns = Number(row?.totalRuns || 0);
+      return {
+        modelId,
+        totalRuns,
+        avgLatencyMs: totalRuns > 0 ? Math.round(Number(row.avgLatencyMs || 0)) : 0,
+        toolCallSuccessRate:
+          totalRuns > 0 ? Number((Number(row.toolCallSuccessRatio || 0) * 100).toFixed(2)) : 0,
+        proofPassRate:
+          row?.proofPassRatio !== null && row?.proofPassRatio !== undefined
+            ? Number((Number(row.proofPassRatio) * 100).toFixed(2))
+            : null,
+        totalInputTokens: Number(row?.totalInputTokens || 0),
+        totalOutputTokens: Number(row?.totalOutputTokens || 0),
+        totalCostUsd: Number(Number(row?.totalCostUsd || 0).toFixed(8)),
+      };
+    } catch {
+      return {
+        modelId,
+        totalRuns: 0,
+        avgLatencyMs: 0,
+        toolCallSuccessRate: 0,
+        proofPassRate: null,
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        totalCostUsd: 0,
+      };
+    }
+  }
+
+  /**
    * Record an empirical task execution outcome with explicit provenance.
    */
   static recordEmpiricalOutcome(modelId: string, passed: boolean, computedFrom: string): void {
-    const profile = this.models.get(modelId);
-    if (!profile) return;
-    const prevTotal = profile.totalTasksExecuted;
-    const prevPassed = profile.historicalPassRate !== null ? (profile.historicalPassRate / 100) * prevTotal : 0;
-    const nextTotal = prevTotal + 1;
-    const nextPassed = prevPassed + (passed ? 1 : 0);
-    profile.totalTasksExecuted = nextTotal;
-    profile.historicalPassRate = Number(((nextPassed / nextTotal) * 100).toFixed(2));
-    profile.telemetryProvenance = {
+    this.recordModelStat({
+      modelId,
+      latencyMs: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      toolCallSuccess: passed,
+      proofGatePassed: passed,
       computedFrom,
-      computedAt: new Date().toISOString(),
-    };
+    });
   }
 
   /**

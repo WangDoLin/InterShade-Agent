@@ -3,6 +3,7 @@ import { SwarmSessionManager, type SpawnWorkerOptions } from './SwarmSessionMana
 import { SwarmCoordinator } from './SwarmCoordinator.js';
 import { SwarmIntegrator } from './SwarmIntegrator.js';
 import { FileLockRegistry } from './FileLockRegistry.js';
+import { resolveAutoMerge } from './SwarmPolicy.js';
 import type { SubtaskSpec, SwarmTask, SwarmRole, SwarmMergeResult, SwarmProgressEvent } from './SwarmTypes.js';
 
 export interface OrchestratorDispatchOptions {
@@ -56,7 +57,7 @@ export class SubagentOrchestrator extends EventEmitter {
   async decomposeAndDispatch(options: OrchestratorDispatchOptions): Promise<OrchestratorDispatchReport> {
     const startTime = Date.now();
     const baseCwd = options.baseCwd || process.cwd();
-    const autoMerge = options.autoMerge === true;
+    const autoMerge = resolveAutoMerge(options.autoMerge);
 
     if (options.subtasks.length === 0) {
       return {

@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { getDatabase } from '../../state/Database.js';
+import { SecretScrubber } from '../../security/SecretScrubber.js';
 
 export interface TrajectoryRecord {
   id: string;
@@ -19,7 +20,7 @@ export interface TrajectoryRecord {
 
 export class TrajectoryRecorder {
   /**
-   * Save an execution trajectory record into SQLite database
+   * Save an execution trajectory record into SQLite database with automatic SecretScrubber protection (NEXT-B-08).
    */
   static recordTrajectory(
     entry: Omit<TrajectoryRecord, 'id' | 'createdAt'>
@@ -27,6 +28,11 @@ export class TrajectoryRecorder {
     const db = getDatabase();
     const id = randomUUID();
     const createdAt = Date.now();
+
+    const scrubbedIntent = SecretScrubber.sanitize(entry.intent);
+    const scrubbedPrompt = SecretScrubber.sanitize(entry.prompt);
+    const scrubbedDiffStat = SecretScrubber.sanitize(entry.diffStat || '');
+    const scrubbedEvidence = SecretScrubber.sanitize(entry.reproEvidence || '');
 
     const stmt = db.prepare(`
       INSERT INTO trajectories (
@@ -40,13 +46,13 @@ export class TrajectoryRecorder {
       id,
       entry.sessionId,
       entry.taskId,
-      entry.intent,
-      entry.prompt,
+      scrubbedIntent,
+      scrubbedPrompt,
       JSON.stringify(entry.stagesExecuted),
       JSON.stringify(entry.changedFiles),
       entry.status,
-      entry.diffStat || '',
-      entry.reproEvidence || '',
+      scrubbedDiffStat,
+      scrubbedEvidence,
       entry.tokensUsed || 0,
       entry.durationMs || 0,
       createdAt
@@ -55,6 +61,10 @@ export class TrajectoryRecorder {
     return {
       id,
       ...entry,
+      intent: scrubbedIntent,
+      prompt: scrubbedPrompt,
+      diffStat: scrubbedDiffStat,
+      reproEvidence: scrubbedEvidence,
       createdAt,
     };
   }

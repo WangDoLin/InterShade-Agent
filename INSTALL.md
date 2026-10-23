@@ -6,7 +6,7 @@ InterShader is an autonomous coding agent and model gateway featuring a Hermes A
 
 ## 1. System Requirements
 
-- **Node.js:** Version `>= 20.0.0` (Node.js v22 or v24 LTS recommended).
+- **Node.js:** Version `>= 22.5.0` (Node.js v22.5+ LTS or v24 LTS required for built-in `node:sqlite`).
 - **Git:** Version `>= 2.30.0` (required for Shadow Worktree sandboxing and git diff verification).
 - **Operating System:** Windows 10/11 (PowerShell), Linux (Ubuntu, Debian, Fedora, Arch), or macOS.
 - **Terminal:** Supports ANSI TrueColor (Windows Terminal, iTerm2, Alacritty, Kitty, or VS Code integrated terminal).

@@ -49,9 +49,17 @@ export interface BenchmarkReport {
   timestamp: string;
   mode: 'quick' | 'full';
   totalTasks: number;
+  /** Explicitly marks whether scores are static reference baselines vs live empirical runs (NEXT-C-15) */
+  syntheticReference?: boolean;
   scores: Record<string, AgentBenchmarkScore>;
   scorecard: string;
   reproducibleMetadata: BenchmarkExecutionMetadata;
+}
+
+export interface BenchmarkTaskValidationResult {
+  valid: boolean;
+  taskCount: number;
+  errors: string[];
 }
 
 export class SweBenchmarkRunner {
@@ -147,6 +155,52 @@ export class SweBenchmarkRunner {
       expectedPassCriteria: 'Execution status remains INCOMPLETE with actionable remediation diagnostics',
     },
   ];
+
+  /**
+   * Validates benchmark task definitions against schema and uniqueness invariants (NEXT-C-16).
+   */
+  public static validateTasks(tasks: BenchmarkTask[] = this.STANDARD_TASKS): BenchmarkTaskValidationResult {
+    const errors: string[] = [];
+    const seenIds = new Set<string>();
+    const validCategories = new Set<BenchmarkCategory>(['BUG_FIX', 'REFACTOR', 'SECURITY', 'INVARIANT']);
+    const validDifficulties = new Set(['EASY', 'MEDIUM', 'HARD']);
+
+    for (const [idx, task] of tasks.entries()) {
+      const prefix = `Task[${idx}] (${task?.id || 'missing-id'})`;
+      if (!task.id || typeof task.id !== 'string' || !/^TASK-\d{3,}$/.test(task.id)) {
+        errors.push(`${prefix}: invalid id '${task?.id}' (expected TASK-NNN)`);
+      } else if (seenIds.has(task.id)) {
+        errors.push(`${prefix}: duplicate task id '${task.id}'`);
+      } else {
+        seenIds.add(task.id);
+      }
+
+      if (!task.name || task.name.trim().length < 5) {
+        errors.push(`${prefix}: name must be at least 5 chars`);
+      }
+      if (!validCategories.has(task.category)) {
+        errors.push(`${prefix}: invalid category '${task.category}'`);
+      }
+      if (!validDifficulties.has(task.difficulty)) {
+        errors.push(`${prefix}: invalid difficulty '${task.difficulty}'`);
+      }
+      if (!task.description || task.description.trim().length < 10) {
+        errors.push(`${prefix}: description must be at least 10 chars`);
+      }
+      if (!Array.isArray(task.targetFiles) || task.targetFiles.length === 0) {
+        errors.push(`${prefix}: targetFiles must be a non-empty string array`);
+      }
+      if (!task.expectedPassCriteria || task.expectedPassCriteria.trim().length < 10) {
+        errors.push(`${prefix}: expectedPassCriteria must be at least 10 chars`);
+      }
+    }
+
+    return {
+      valid: errors.length === 0,
+      taskCount: tasks.length,
+      errors,
+    };
+  }
 
   public static getTasks(mode: 'quick' | 'full' = 'quick'): BenchmarkTask[] {
     if (mode === 'quick') {
@@ -275,6 +329,7 @@ export class SweBenchmarkRunner {
       timestamp: new Date().toISOString(),
       mode,
       totalTasks: n,
+      syntheticReference: true,
       scores,
       scorecard,
       reproducibleMetadata,

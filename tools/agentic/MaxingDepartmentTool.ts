@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { BaseTool } from '../BaseTool.js';
 import type { ToolExecutionContext } from '../../types/index.js';
 import { SwarmDepartmentCoordinator } from '../../engine/swarm/SwarmDepartmentCoordinator.js';
+import { SwarmPolicy, resolveAutoMerge } from '../../engine/swarm/SwarmPolicy.js';
 import type { SwarmRole } from '../../engine/swarm/SwarmTypes.js';
 
 export interface MaxingDepartmentArgs {
@@ -54,7 +55,7 @@ export class MaxingDepartmentTool extends BaseTool<MaxingDepartmentArgs, string>
     autoMerge: z
       .boolean()
       .optional()
-      .default(true)
+      .default(SwarmPolicy.autoMerge)
       .describe('Whether to automatically verify and merge all worktree branches back to main'),
   });
 
@@ -69,7 +70,7 @@ export class MaxingDepartmentTool extends BaseTool<MaxingDepartmentArgs, string>
       missionGoal: args.overallGoal,
       baseCwd: context.cwd,
       maxingBudget: args.maxingBudget,
-      autoMerge: args.autoMerge !== false,
+      autoMerge: resolveAutoMerge(args.autoMerge),
       requiredRoles: args.requiredRoles,
       onProgress: context.onProgress,
     });

@@ -1,0 +1,1497 @@
+{
+  "alphafold_database": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": [
+          "fetch",
+          "analyze_plddt",
+          "analyze_pae"
+        ],
+        "description": "Action to execute: fetch (download structure and PAE), analyze_plddt, analyze_pae"
+      },
+      "uniprotId": {
+        "type": "string",
+        "description": "UniProt Accession ID (e.g. P04637, P00520)"
+      },
+      "metadataFile": {
+        "type": "string",
+        "description": "Path to downloaded -metadata.json file for analyze_plddt action"
+      },
+      "paeFile": {
+        "type": "string",
+        "description": "Path to downloaded _predicted_aligned_error.json file for analyze_pae action"
+      },
+      "outputDir": {
+        "type": "string",
+        "description": "Output directory to store downloaded structures (defaults to <cwd>/data/alphafold)"
+      }
+    },
+    "required": [
+      "action"
+    ]
+  },
+  "alphagenome_analysis": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": [
+          "lookup_gene",
+          "resolve_ontology",
+          "analyze_variant",
+          "analyze_ism",
+          "interpret_splicing",
+          "visualize_tracks",
+          "broad_scan"
+        ],
+        "description": "AlphaGenome analysis action"
+      },
+      "geneSymbol": {
+        "type": "string",
+        "description": "Gene symbol (e.g. TP53, BRCA1, USH2A)"
+      },
+      "variant": {
+        "type": "string",
+        "description": "Variant in chr:pos:ref>alt format (e.g. chr7:140753336:A>T)"
+      },
+      "term": {
+        "type": "string",
+        "description": "Tissue or cell-type term to map to UBERON/CL ontology (e.g. liver, heart)"
+      },
+      "interval": {
+        "type": "string",
+        "description": "Genomic interval for visualize_tracks (e.g. chr7:140750000-140760000)"
+      },
+      "outputFile": {
+        "type": "string",
+        "description": "Optional output file path for JSON results or plots"
+      }
+    },
+    "required": [
+      "action"
+    ]
+  },
+  "ask_user": {
+    "type": "object",
+    "properties": {
+      "question": {
+        "type": "string",
+        "description": "The question or clarification request for the user"
+      },
+      "options": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "List of selectable options for the user"
+      },
+      "allowCustomInput": {
+        "type": "boolean",
+        "description": "Whether the user can provide a custom write-in text response (default: true)"
+      }
+    },
+    "required": [
+      "question"
+    ]
+  },
+  "batch_execute": {
+    "type": "object",
+    "properties": {
+      "operations": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Unique identifier for this operation in the batch"
+            },
+            "tool": {
+              "type": "string",
+              "description": "Name of the tool to execute (e.g. file_read, file_edit, grep_search)"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": true,
+              "description": "Arguments object to pass to the tool"
+            }
+          },
+          "required": [
+            "id",
+            "tool",
+            "args"
+          ]
+        },
+        "description": "Ordered array of tool operations to execute atomically"
+      },
+      "atomic": {
+        "type": "boolean",
+        "description": "If true, any failure triggers an automatic rollback of all changes in this batch (default: true)"
+      }
+    },
+    "required": [
+      "operations"
+    ]
+  },
+  "browser_automation": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": [
+          "inspect_leaderboard",
+          "monitor_dashboard",
+          "fetch_page_text"
+        ],
+        "description": "Browser action: \"inspect_leaderboard\", \"monitor_dashboard\", or \"fetch_page_text\""
+      },
+      "url": {
+        "type": "string",
+        "description": "The URL to navigate to (e.g. \"http://localhost:6006\" or public leaderboard URL)"
+      },
+      "selector": {
+        "type": "string",
+        "description": "Optional CSS selector or keyword to focus inspection on"
+      },
+      "timeoutMs": {
+        "type": "number",
+        "description": "Maximum navigation timeout in milliseconds (default: 15000ms)"
+      }
+    },
+    "required": [
+      "action",
+      "url"
+    ]
+  },
+  "code_review_audit": {
+    "type": "object",
+    "properties": {
+      "targetFiles": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "List of specific files to audit. If omitted, audits all modified files in git working tree."
+      },
+      "checkStagedOnly": {
+        "type": "boolean",
+        "description": "Check only staged git files"
+      }
+    }
+  },
+  "delegate_subagent": {
+    "type": "object",
+    "properties": {
+      "taskGoal": {
+        "type": "string",
+        "description": "Precise and clear goal for the delegated subagent"
+      },
+      "contextHints": {
+        "type": "string",
+        "description": "Contextual file paths or hints to guide the subagent"
+      },
+      "workerName": {
+        "type": "string",
+        "description": "Unique name/identity for this worker agent (e.g. worker-1, tester)"
+      },
+      "runInBackground": {
+        "type": "boolean",
+        "description": "Whether to run asynchronously in background without blocking coordinator"
+      },
+      "agentRole": {
+        "type": "string",
+        "enum": [
+          "explore",
+          "plan",
+          "general",
+          "verification",
+          "workflow",
+          "architect",
+          "coder",
+          "reviewer",
+          "tester",
+          "profiler"
+        ],
+        "description": "Claude Code specialized agent step: explore, plan, general, verification, workflow, architect, coder, reviewer, tester, profiler"
+      }
+    },
+    "required": [
+      "taskGoal"
+    ]
+  },
+  "dependency_audit": {
+    "type": "object",
+    "properties": {
+      "targetDir": {
+        "type": "string",
+        "description": "Target project directory to audit (default: current working directory)"
+      },
+      "ecosystem": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "node",
+          "python"
+        ],
+        "description": "Target dependency ecosystem to scan (default: auto-detect)"
+      },
+      "scanTypes": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "enum": [
+            "vulnerabilities",
+            "outdated",
+            "licenses",
+            "freshness2026"
+          ]
+        },
+        "description": "Types of dependency checks to perform (default: all)"
+      },
+      "saveReport": {
+        "type": "boolean",
+        "description": "Whether to save a markdown report to .agent/audits/ (default: false)"
+      }
+    }
+  },
+  "dispatch_subagents": {
+    "type": "object",
+    "properties": {
+      "overallGoal": {
+        "type": "string",
+        "description": "Overall goal or feature to accomplish across all subagents"
+      },
+      "subtasks": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Unique identifier for subtask (e.g. task-1, api-worker)"
+            },
+            "title": {
+              "type": "string",
+              "description": "Short title (e.g. Implement Auth Endpoint)"
+            },
+            "role": {
+              "type": "string",
+              "enum": [
+                "backend",
+                "frontend",
+                "tester",
+                "bioinformatics",
+                "architect",
+                "reviewer",
+                "general"
+              ],
+              "description": "Specialized agent role"
+            },
+            "prompt": {
+              "type": "string",
+              "description": "Precise instructions for the subagent"
+            },
+            "scope": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "File path globs this subagent is exclusively leased to modify (e.g. [\"src/api/**\"])"
+            },
+            "dependsOn": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "IDs of subtasks that must complete prior to this one"
+            }
+          },
+          "required": [
+            "id",
+            "title",
+            "role",
+            "prompt"
+          ]
+        },
+        "description": "Array of specialized subtasks to dispatch concurrently"
+      },
+      "autoMerge": {
+        "type": "boolean",
+        "default": false,
+        "description": "Whether to automatically verify and merge completed subagent branches into main repository"
+      }
+    },
+    "required": [
+      "overallGoal",
+      "subtasks"
+    ]
+  },
+  "encode_ccres": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": [
+          "search_ccres",
+          "ccre_details",
+          "nearby_genes",
+          "biosamples",
+          "gene_expression",
+          "linked_genes",
+          "orthologs",
+          "encode_portal_search"
+        ],
+        "description": "Action to execute on ENCODE Registry"
+      },
+      "chromosome": {
+        "type": "string",
+        "description": "Chromosome (e.g. chr11, chr7) for search_ccres"
+      },
+      "start": {
+        "type": "number",
+        "description": "Genomic start coordinate (e.g. 5205263) for search_ccres"
+      },
+      "end": {
+        "type": "number",
+        "description": "Genomic end coordinate (e.g. 5207263) for search_ccres"
+      },
+      "accession": {
+        "type": "string",
+        "description": "cCRE Accession ID (e.g. EH38E2941922) for ccre_details, nearby_genes, linked_genes, orthologs"
+      },
+      "geneSymbol": {
+        "type": "string",
+        "description": "Target gene symbol (e.g. GAPDH, TP53) for gene_expression"
+      },
+      "portalQuery": {
+        "type": "string",
+        "description": "Raw query string for ENCODE Portal REST API (e.g. \"type=Experiment&target.label=CTCF\")"
+      },
+      "assembly": {
+        "type": "string",
+        "enum": [
+          "grch38",
+          "mm10"
+        ],
+        "description": "Genomic assembly (default: grch38)"
+      },
+      "outputFile": {
+        "type": "string",
+        "description": "Output JSON file path"
+      }
+    },
+    "required": [
+      "action"
+    ]
+  },
+  "fetch_web_content": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string",
+        "description": "The web URL to fetch content from (e.g. \"https://docs.github.com\")"
+      },
+      "prompt": {
+        "type": "string",
+        "description": "Optional search/filter intent to extract only relevant sections from the page"
+      },
+      "maxChars": {
+        "type": "number",
+        "description": "Maximum characters of content to return (default: 40000)"
+      }
+    },
+    "required": [
+      "url"
+    ]
+  },
+  "file_edit": {
+    "type": "object",
+    "properties": {
+      "filePath": {
+        "type": "string",
+        "description": "Path to the target file to edit"
+      },
+      "oldString": {
+        "type": "string",
+        "description": "The exact or trimmed string block to replace"
+      },
+      "newString": {
+        "type": "string",
+        "description": "The new replacement string block"
+      },
+      "replaceAll": {
+        "type": "boolean",
+        "description": "Replace all matching occurrences (default: false)"
+      },
+      "expectedMtime": {
+        "type": "number",
+        "description": "Expected mtime timestamp to prevent dirty writes"
+      }
+    },
+    "required": [
+      "filePath",
+      "oldString",
+      "newString"
+    ]
+  },
+  "file_read": {
+    "type": "object",
+    "properties": {
+      "filePath": {
+        "type": "string",
+        "description": "Relative or absolute path to the file to read"
+      },
+      "offset": {
+        "type": "number",
+        "description": "Starting line number to read (1-indexed, default: 1)"
+      },
+      "limit": {
+        "type": "number",
+        "description": "Maximum number of lines to read (default: 2000)"
+      }
+    },
+    "required": [
+      "filePath"
+    ]
+  },
+  "file_write": {
+    "type": "object",
+    "properties": {
+      "filePath": {
+        "type": "string",
+        "description": "Path to the file to create or overwrite"
+      },
+      "content": {
+        "type": "string",
+        "description": "The complete content to write into the file"
+      },
+      "overwrite": {
+        "type": "boolean",
+        "description": "Allow overwriting if the file already exists (default: false)"
+      }
+    },
+    "required": [
+      "filePath",
+      "content"
+    ]
+  },
+  "git_commit": {
+    "type": "object",
+    "properties": {
+      "message": {
+        "type": "string",
+        "description": "Conventional Commit message (e.g. \"feat(auth): add OAuth2 token refresh support\")"
+      },
+      "files": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Specific files to stage and commit. If omitted, all modified tracked and untracked files are staged."
+      },
+      "amend": {
+        "type": "boolean",
+        "description": "Amend previous commit instead of creating a new one"
+      }
+    },
+    "required": [
+      "message"
+    ]
+  },
+  "glob_find": {
+    "type": "object",
+    "properties": {
+      "pattern": {
+        "type": "string",
+        "description": "Glob pattern to match files (e.g. \"**/*.json\", \"src/**/*.ts\")"
+      },
+      "path": {
+        "type": "string",
+        "description": "Root directory to search within (default: current working directory)"
+      },
+      "maxResults": {
+        "type": "number",
+        "description": "Maximum number of file paths to return (default: 100)"
+      }
+    },
+    "required": [
+      "pattern"
+    ]
+  },
+  "grep_search": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string",
+        "description": "Search query or regular expression pattern"
+      },
+      "path": {
+        "type": "string",
+        "description": "Directory or file path to search within (default: current working directory)"
+      },
+      "caseInsensitive": {
+        "type": "boolean",
+        "description": "Case-insensitive search (default: false)"
+      },
+      "maxResults": {
+        "type": "number",
+        "description": "Maximum number of matching lines to return (default: 50)"
+      },
+      "pathPattern": {
+        "type": "string",
+        "description": "Optional glob pattern or file extension filter (e.g. \"*.ts\", \"src/**\")"
+      }
+    },
+    "required": [
+      "query"
+    ]
+  },
+  "huggingface_hub": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": [
+          "search_models",
+          "model_info",
+          "search_datasets",
+          "dataset_info",
+          "fetch_config"
+        ],
+        "description": "Action: search_models, model_info, search_datasets, dataset_info, or fetch_config"
+      },
+      "query": {
+        "type": "string",
+        "description": "Search keyword or task (e.g. \"llama-3\", \"biomedical\", \"tabular\")"
+      },
+      "repoId": {
+        "type": "string",
+        "description": "HuggingFace repository ID (e.g. \"meta-llama/Llama-3-8B\", \"facebook/esm2_t33_650M_UR50D\")"
+      },
+      "filePath": {
+        "type": "string",
+        "description": "File path in repo for fetch_config (e.g. \"config.json\", \"tokenizer_config.json\")"
+      },
+      "limit": {
+        "type": "number",
+        "description": "Maximum number of items to return (default: 5)"
+      },
+      "task": {
+        "type": "string",
+        "description": "Pipeline task tag (e.g. \"text-generation\", \"feature-extraction\", \"image-classification\")"
+      }
+    },
+    "required": [
+      "action"
+    ]
+  },
+  "human_protein_atlas": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": [
+          "resolve_ensembl_id",
+          "get_tissue_expression",
+          "get_subcellular_location",
+          "get_atlas_entry"
+        ],
+        "description": "Action to execute on Human Protein Atlas"
+      },
+      "geneSymbol": {
+        "type": "string",
+        "description": "Gene symbol (e.g. TP53, ERBB2, EGFR) for resolve_ensembl_id or convenience"
+      },
+      "ensemblId": {
+        "type": "string",
+        "description": "Ensembl Gene ID (e.g. ENSG00000141510) for tissue and subcellular queries"
+      },
+      "tissues": {
+        "type": "string",
+        "description": "Comma-separated list of tissues to filter (e.g. \"liver,kidney,cerebral cortex\")"
+      },
+      "outputFile": {
+        "type": "string",
+        "description": "Output JSON file path (defaults to /tmp/hpa_output.json or local scratch)"
+      }
+    },
+    "required": [
+      "action"
+    ]
+  },
+  "invariant_fuzz_test": {
+    "type": "object",
+    "properties": {
+      "filePath": {
+        "type": "string",
+        "description": "Relative path to the TypeScript or JavaScript file containing the function to fuzz."
+      },
+      "functionName": {
+        "type": "string",
+        "description": "Name of the exported function to test (or \"default\" for default export)."
+      },
+      "invariantType": {
+        "type": "string",
+        "enum": [
+          "NO_PANIC",
+          "IDEMPOTENCY",
+          "ROUNDTRIP",
+          "COMMUTATIVITY",
+          "MONOTONICITY",
+          "CUSTOM_PREDICATE"
+        ],
+        "description": "The invariant property to verify across randomized inputs. Default: \"NO_PANIC\"."
+      },
+      "iterations": {
+        "type": "number",
+        "description": "Number of randomized boundary inputs to generate (default: 100, max: 2000)."
+      },
+      "generateReproScript": {
+        "type": "boolean",
+        "description": "If true, writes a standalone reproduction test script when a counterexample is found (default: true)."
+      },
+      "customPredicate": {
+        "type": "string",
+        "description": "Optional JavaScript predicate string `(result, input) => boolean` for CUSTOM_PREDICATE checks."
+      }
+    },
+    "required": [
+      "filePath",
+      "functionName"
+    ]
+  },
+  "literature_search": {
+    "type": "object",
+    "properties": {
+      "source": {
+        "type": "string",
+        "enum": [
+          "openalex",
+          "arxiv",
+          "biorxiv"
+        ],
+        "description": "Literature source: \"openalex\" (peer-reviewed & citations), \"arxiv\" (AI preprints), or \"biorxiv\" (biological AI)"
+      },
+      "query": {
+        "type": "string",
+        "description": "Search query, concept, entity name, DOI, or ID (e.g. \"transformer architecture\", \"AlphaFold 3\", \"W2741809807\")"
+      },
+      "action": {
+        "type": "string",
+        "enum": [
+          "search",
+          "resolve",
+          "get",
+          "sota_architecture"
+        ],
+        "description": "Action: \"search\" (default), \"resolve\" (name to ID candidates), \"get\" (single ID/DOI), \"sota_architecture\" (architecture extraction)"
+      },
+      "entityType": {
+        "type": "string",
+        "enum": [
+          "works",
+          "authors",
+          "institutions",
+          "topics"
+        ],
+        "description": "Entity type for OpenAlex queries (default: works)"
+      },
+      "filter": {
+        "type": "string",
+        "description": "OpenAlex filter expression (e.g. \"publication_year:>=2023,is_oa:true\")"
+      },
+      "sortBy": {
+        "type": "string",
+        "description": "Sort order (e.g. \"cited_by_count:desc\" or \"publication_year:desc\")"
+      },
+      "maxResults": {
+        "type": "number",
+        "description": "Maximum papers/entities to return (default: 5)"
+      }
+    },
+    "required": [
+      "source",
+      "query"
+    ]
+  },
+  "lsp_code_intelligence": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": [
+          "document_symbols",
+          "definition",
+          "references",
+          "type_info"
+        ],
+        "description": "LSP operation to perform"
+      },
+      "filePath": {
+        "type": "string",
+        "description": "Relative or absolute file path to analyze"
+      },
+      "line": {
+        "type": "number",
+        "description": "1-based line number for position-based actions (definition, references, type_info)"
+      },
+      "character": {
+        "type": "number",
+        "description": "1-based column number (default: 1)"
+      }
+    },
+    "required": [
+      "action",
+      "filePath"
+    ]
+  },
+  "maxing_department": {
+    "type": "object",
+    "properties": {
+      "overallGoal": {
+        "type": "string",
+        "description": "Overall mission goal for the software engineering department to design, implement, and verify"
+      },
+      "requiredRoles": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "enum": [
+            "architect",
+            "backend",
+            "frontend",
+            "tester",
+            "reviewer",
+            "security",
+            "research",
+            "bioinformatics",
+            "general"
+          ]
+        },
+        "description": "Optional explicit list of department desks to mobilize (default: auto-inferred by Lead Architect)"
+      },
+      "maxingBudget": {
+        "type": "number",
+        "description": "Thinking token budget per specialist agent (default: 16,384)"
+      },
+      "autoMerge": {
+        "type": "boolean",
+        "default": false,
+        "description": "Whether to automatically verify and merge all worktree branches back to main"
+      }
+    },
+    "required": [
+      "overallGoal"
+    ]
+  },
+  "memory_record": {
+    "type": "object",
+    "properties": {
+      "type": {
+        "type": "string",
+        "enum": [
+          "decision",
+          "lesson",
+          "architecture",
+          "bug_pattern",
+          "skill"
+        ],
+        "description": "Category of memory to record"
+      },
+      "title": {
+        "type": "string",
+        "description": "Short descriptive title summarizing the decision or insight"
+      },
+      "content": {
+        "type": "string",
+        "description": "Detailed content, code invariant, rule, or explanation to remember permanently"
+      }
+    },
+    "required": [
+      "type",
+      "title",
+      "content"
+    ]
+  },
+  "memory_search": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string",
+        "description": "Search query keywords for past memories, bug solutions, or architectural guidelines"
+      },
+      "limit": {
+        "type": "number",
+        "description": "Maximum number of memories to return (default: 5)"
+      },
+      "type": {
+        "type": "string",
+        "enum": [
+          "decision",
+          "lesson",
+          "architecture",
+          "bug_pattern",
+          "skill"
+        ],
+        "description": "Filter by memory type"
+      }
+    },
+    "required": [
+      "query"
+    ]
+  },
+  "orca_worktree_cleanup": {
+    "type": "object",
+    "properties": {
+      "worktreeId": {
+        "type": "string",
+        "description": "ID of the worktree to clean up"
+      },
+      "deleteBranch": {
+        "type": "boolean",
+        "description": "Whether to also delete the git branch (default: true)"
+      }
+    },
+    "required": [
+      "worktreeId"
+    ]
+  },
+  "orca_worktree_create": {
+    "type": "object",
+    "properties": {
+      "worktreeId": {
+        "type": "string",
+        "description": "Unique identifier or slug for the worktree"
+      },
+      "baseBranch": {
+        "type": "string",
+        "description": "Git branch or commit to fork from (default: HEAD)"
+      }
+    },
+    "required": [
+      "worktreeId"
+    ]
+  },
+  "orca_worktree_diff": {
+    "type": "object",
+    "properties": {
+      "worktreeId": {
+        "type": "string",
+        "description": "ID of the worktree to inspect diff for"
+      },
+      "baseBranch": {
+        "type": "string",
+        "description": "Base branch to compare against (default: HEAD)"
+      }
+    },
+    "required": [
+      "worktreeId"
+    ]
+  },
+  "orca_worktree_list": {
+    "type": "object",
+    "properties": {}
+  },
+  "pack_repository": {
+    "type": "object",
+    "properties": {
+      "focusPaths": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "List of specific relative file or directory paths to include with full content (Tier 2 focus)"
+      },
+      "maxTokens": {
+        "type": "number",
+        "description": "Maximum total token budget for the repository snapshot (default: 16000)"
+      },
+      "includeTree": {
+        "type": "boolean",
+        "description": "Whether to append the ASCII directory tree layout at the end"
+      },
+      "includeAstOnly": {
+        "type": "boolean",
+        "description": "When true, only extracts AST skeletons for non-manifest files regardless of focus paths"
+      },
+      "targetDir": {
+        "type": "string",
+        "description": "Target repository directory to pack (defaults to current working directory)"
+      }
+    }
+  },
+  "plan_mode": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "anyOf": [
+          {
+            "type": "string",
+            "enum": [
+              "enter",
+              "exit",
+              "create",
+              "update",
+              "view",
+              "get"
+            ]
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "default": "create"
+      },
+      "planTitle": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "number"
+          }
+        ],
+        "description": "Title or primary objective of the plan"
+      },
+      "planSummary": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "number"
+          }
+        ],
+        "description": "Summary of the plan or exit rationale"
+      },
+      "planSteps": {
+        "type": "array",
+        "items": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "step": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                },
+                "text": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "details": {
+                  "type": "string"
+                },
+                "targetFiles": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                },
+                "dependencies": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                },
+                "changeType": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "new",
+                        "modified",
+                        "unchanged",
+                        "removed"
+                      ]
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "description": "Ordered atomic plan steps"
+      },
+      "changesDescription": {
+        "type": "string",
+        "description": "Explanation of what is being added or modified relative to the previous plan revision"
+      },
+      "acceptanceCriteria": {
+        "anyOf": [
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "description": "Verification criteria and test requirements for this plan"
+      }
+    }
+  },
+  "prompt_enhancer": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": [
+          "enhance_prompt",
+          "generate_ml_spec"
+        ],
+        "description": "Action: \"enhance_prompt\" for structured requirements or \"generate_ml_spec\" for ML engine parameters"
+      },
+      "rawPrompt": {
+        "type": "string",
+        "description": "The initial user prompt or research inquiry to enhance"
+      },
+      "domainContext": {
+        "type": "string",
+        "enum": [
+          "ml_deep_learning",
+          "biological_genomics",
+          "software_engineering"
+        ],
+        "description": "Domain specialization for tailored heuristic expansion"
+      },
+      "assumptions": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "string"
+        },
+        "description": "Optional user assumptions or constraints to incorporate"
+      }
+    },
+    "required": [
+      "action",
+      "rawPrompt"
+    ]
+  },
+  "pytorch_model_builder": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": [
+          "scaffold_project",
+          "verify_batch_sanity",
+          "run_training",
+          "export_model",
+          "dispatch_cloud_spec"
+        ],
+        "description": "Action: scaffold_project, verify_batch_sanity, run_training, export_model, or dispatch_cloud_spec"
+      },
+      "modelType": {
+        "type": "string",
+        "enum": [
+          "tabular",
+          "vision",
+          "nlp_transformer",
+          "bio_sequence"
+        ],
+        "description": "Model type paradigm (default: nlp_transformer)"
+      },
+      "targetDir": {
+        "type": "string",
+        "description": "Target directory for scaffolding or training (default: ./ml_project)"
+      },
+      "scriptPath": {
+        "type": "string",
+        "description": "Path to training script for run_training or verify_batch_sanity"
+      },
+      "cloudProvider": {
+        "type": "string",
+        "enum": [
+          "modal",
+          "runpod",
+          "colab"
+        ],
+        "description": "Cloud GPU provider target for dispatch_cloud_spec (default: modal)"
+      },
+      "dependencies": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Additional PyTorch dependencies (e.g. [\"torch\", \"torchvision\", \"transformers\", \"timm\"])"
+      }
+    },
+    "required": [
+      "action"
+    ]
+  },
+  "reach_doctor": {
+    "type": "object",
+    "properties": {}
+  },
+  "reach_github_research": {
+    "type": "object",
+    "properties": {
+      "repo": {
+        "type": "string",
+        "description": "Repository in \"owner/repo\" format or full GitHub URL"
+      },
+      "resource": {
+        "type": "string",
+        "enum": [
+          "readme",
+          "issue",
+          "file"
+        ],
+        "description": "Type of resource to inspect"
+      },
+      "path": {
+        "type": "string",
+        "description": "File path within repository (required when resource is \"file\")"
+      }
+    },
+    "required": [
+      "repo",
+      "resource"
+    ]
+  },
+  "reach_web_read": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string",
+        "description": "The URL to read and convert to Markdown"
+      }
+    },
+    "required": [
+      "url"
+    ]
+  },
+  "reach_web_search": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string",
+        "description": "The search query or technical keywords to search for"
+      },
+      "maxResults": {
+        "type": "number",
+        "description": "Maximum number of search results to return (default: 5)"
+      }
+    },
+    "required": [
+      "query"
+    ]
+  },
+  "repo_map": {
+    "type": "object",
+    "properties": {
+      "subDir": {
+        "type": "string",
+        "description": "Sub-directory to focus the map on (defaults to entire repository)"
+      },
+      "maxFiles": {
+        "type": "number",
+        "description": "Maximum number of key source files to include (default: 20)"
+      }
+    }
+  },
+  "run_shell_command": {
+    "type": "object",
+    "properties": {
+      "command": {
+        "type": "string",
+        "description": "The shell command to execute (e.g. \"npm test\", \"git status\")"
+      },
+      "timeoutMs": {
+        "type": "number",
+        "description": "Maximum execution timeout in milliseconds (default: 60000ms)"
+      }
+    },
+    "required": [
+      "command"
+    ]
+  },
+  "schedule_task": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": [
+          "create",
+          "cancel",
+          "list"
+        ],
+        "description": "Action to perform: \"create\" to schedule a new task, \"cancel\" to abort a task, or \"list\" to view active schedules."
+      },
+      "prompt": {
+        "type": "string",
+        "description": "The notification message/prompt to send to the agent when the timer expires or cron triggers."
+      },
+      "durationSeconds": {
+        "type": "number",
+        "description": "For one-shot timers: Number of seconds to wait before triggering notification."
+      },
+      "cronExpression": {
+        "type": "string",
+        "description": "For recurring schedules: Standard cron expression (e.g., \"*/5 * * * *\" for every 5 minutes)."
+      },
+      "timerCondition": {
+        "type": "string",
+        "description": "When a timer should early terminate (\"never\", \"any\", or a specific task-id)."
+      },
+      "maxIterations": {
+        "type": "number",
+        "description": "Maximum number of times a recurring cron schedule will fire."
+      },
+      "taskId": {
+        "type": "string",
+        "description": "Task ID to cancel when action is \"cancel\"."
+      }
+    }
+  },
+  "semantic_search": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string",
+        "description": "Natural language description or code intent to semantically search for"
+      },
+      "targetDir": {
+        "type": "string",
+        "description": "Directory to search in (defaults to workspace)"
+      },
+      "topK": {
+        "type": "number",
+        "description": "Maximum number of matches to return (default: 5)"
+      }
+    },
+    "required": [
+      "query"
+    ]
+  },
+  "serena_diagnostics": {
+    "type": "object",
+    "properties": {
+      "filePath": {
+        "type": "string",
+        "description": "File path to check"
+      }
+    },
+    "required": [
+      "filePath"
+    ]
+  },
+  "serena_find_definition": {
+    "type": "object",
+    "properties": {
+      "filePath": {
+        "type": "string",
+        "description": "Source file path"
+      },
+      "symbolName": {
+        "type": "string",
+        "description": "Name of the symbol (class, function, variable) to find"
+      }
+    },
+    "required": [
+      "filePath",
+      "symbolName"
+    ]
+  },
+  "serena_find_references": {
+    "type": "object",
+    "properties": {
+      "symbolName": {
+        "type": "string",
+        "description": "Name of the symbol to find references for"
+      },
+      "searchDir": {
+        "type": "string",
+        "description": "Directory to search in (default: current workspace)"
+      },
+      "maxResults": {
+        "type": "number",
+        "description": "Maximum number of occurrences to return (default: 50)"
+      }
+    },
+    "required": [
+      "symbolName"
+    ]
+  },
+  "serena_symbol_outline": {
+    "type": "object",
+    "properties": {
+      "filePath": {
+        "type": "string",
+        "description": "Relative or absolute file path to analyze"
+      }
+    },
+    "required": [
+      "filePath"
+    ]
+  },
+  "skill_activate": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "Exact name of the skill to activate (e.g. typescript-nodejs-analyzer, test-automation-vitest)"
+      }
+    },
+    "required": [
+      "name"
+    ]
+  },
+  "skill_audit": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "Optional name of a specific skill to audit. If omitted, all skills are audited."
+      }
+    }
+  },
+  "skill_discovery": {
+    "type": "object",
+    "properties": {
+      "intent": {
+        "type": "string",
+        "description": "Intent or task description to match against existing skills"
+      }
+    }
+  },
+  "task_manage": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": [
+          "create",
+          "update",
+          "list",
+          "get",
+          "delete"
+        ],
+        "description": "Action to perform on the session task checklist"
+      },
+      "taskId": {
+        "type": "string",
+        "description": "Task ID required for update, get, or delete actions"
+      },
+      "subject": {
+        "type": "string",
+        "description": "Brief title for the task (required when action=\"create\")"
+      },
+      "description": {
+        "type": "string",
+        "description": "Details of what needs to be done"
+      },
+      "status": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "in_progress",
+          "completed"
+        ],
+        "description": "New status for the task (for action=\"update\")"
+      },
+      "activeForm": {
+        "type": "string",
+        "description": "Present continuous verb shown in UI spinner when in_progress, e.g. \"Running unit tests\""
+      },
+      "blocks": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "IDs of tasks that cannot start until this task is completed"
+      },
+      "blockedBy": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "IDs of tasks that must complete before this task can start"
+      },
+      "metadata": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "Optional key-value metadata to attach to the task"
+      }
+    },
+    "required": [
+      "action"
+    ]
+  },
+  "tool_search": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string",
+        "description": "Search query for deferred tools. Use \"select:<tool_name>\" for direct selection, or keywords to search."
+      },
+      "maxResults": {
+        "type": "number",
+        "description": "Maximum number of results to return (default: 5)"
+      }
+    },
+    "required": [
+      "query"
+    ]
+  }
+}

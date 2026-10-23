@@ -6,6 +6,7 @@ import { AttestationAuthority, type ProofAttestation } from './AttestationAuthor
 import { CanonicalJson } from './CanonicalJson.js';
 import { IsolatedKeystore } from './IsolatedKeystore.js';
 import { SupplyChainExporter } from './SupplyChainExporter.js';
+import { SecretScrubber } from '../../security/SecretScrubber.js';
 
 export interface GateEvidenceArtifact {
   gateId: string;
@@ -203,12 +204,13 @@ export class EvidenceStore {
       fs.mkdirSync(evidenceDir, { recursive: true });
     }
 
+    const scrubbedContent = SecretScrubber.sanitize(content);
     const evidencePath = path.join(evidenceDir, filename);
-    fs.writeFileSync(evidencePath, content, 'utf-8');
+    fs.writeFileSync(evidencePath, scrubbedContent, 'utf-8');
 
     // Also persist in root proof directory for backward compatibility
     const rootPath = path.join(proofDir, filename);
-    fs.writeFileSync(rootPath, content, 'utf-8');
+    fs.writeFileSync(rootPath, scrubbedContent, 'utf-8');
 
     return path.relative(cwd, evidencePath).replace(/\\/g, '/');
   }

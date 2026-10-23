@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { SwarmSessionManager, type SpawnWorkerOptions } from './SwarmSessionManager.js';
 import { SwarmIntegrator } from './SwarmIntegrator.js';
 import { DepartmentBlackboard } from './DepartmentBlackboard.js';
+import { resolveAutoMerge } from './SwarmPolicy.js';
 import { PromptEnhancerTool } from '../../tools/agentic/PromptEnhancerTool.js';
 import type {
   SwarmRole,
@@ -56,7 +57,7 @@ export class SwarmDepartmentCoordinator extends EventEmitter {
   async executeMission(options: DepartmentMissionOptions): Promise<DepartmentMissionReport> {
     const startTime = Date.now();
     const baseCwd = options.baseCwd || process.cwd();
-    const autoMerge = options.autoMerge !== false;
+    const autoMerge = resolveAutoMerge(options.autoMerge);
     const thinkingBudget = options.maxingBudget || DEFAULT_THINKING_BUDGET;
 
     this.notify(options.onProgress, `[DEPARTMENT]: Initializing Maxing Department Swarm for "${options.missionGoal}"...`);

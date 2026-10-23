@@ -7,6 +7,18 @@ export const DEFAULT_MAX_PROMPT_CHARS = 32_000;
 export const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 export const DEFAULT_RATE_LIMIT_WINDOW_MS = 60_000;
 export const DEFAULT_RATE_LIMIT_MAX = 60;
+export const DEFAULT_TELEGRAM_APPROVAL_TTL_SECONDS = 600;
+export const DEFAULT_TELEGRAM_REPLAY_WINDOW = 1000;
+
+export interface TelegramGatewayConfig {
+  enabled: boolean;
+  webhookSecretTokenEnv: string;
+  webhookSecretHash?: string;
+  allowedUserIds: number[];
+  allowedChatIds: number[];
+  approvalTtlSeconds: number;
+  replayWindowUpdates: number;
+}
 
 export interface GatewayConfig {
   host: string;
@@ -28,6 +40,7 @@ export interface GatewayConfig {
     windowMs: number;
     maxPerWindow: number;
   };
+  telegram: TelegramGatewayConfig;
 }
 
 export interface GatewayServerOptions {
@@ -41,6 +54,15 @@ export interface GatewayServerOptions {
   maxPromptChars?: number;
   rateLimitWindowMs?: number;
   rateLimitMaxPerWindow?: number;
+  telegram?: {
+    enabled?: boolean;
+    webhookSecretToken?: string;
+    webhookSecretTokenEnv?: string;
+    allowedUserIds?: number[];
+    allowedChatIds?: number[];
+    approvalTtlSeconds?: number;
+    replayWindowUpdates?: number;
+  };
 }
 
 /**
@@ -51,7 +73,7 @@ export function hashGatewayToken(token: string): string {
 }
 
 /**
- * Constant-time verification of a bearer token against an expected SHA-256 token hash.
+ * Constant-time verification of a bearer or webhook secret token against an expected SHA-256 token hash.
  */
 export function verifyGatewayToken(candidateToken: string | undefined, expectedHash: string | undefined): boolean {
   if (!candidateToken || !expectedHash) return false;
@@ -82,6 +104,10 @@ export function resolveGatewayConfig(options: GatewayServerOptions): GatewayConf
     );
   }
 
+  const tgSecretEnvName = options.telegram?.webhookSecretTokenEnv ?? 'TELEGRAM_WEBHOOK_SECRET';
+  const rawTelegramSecret =
+    options.telegram?.webhookSecretToken ?? process.env[tgSecretEnvName];
+
   return {
     host,
     port,
@@ -101,6 +127,15 @@ export function resolveGatewayConfig(options: GatewayServerOptions): GatewayConf
     rateLimit: {
       windowMs: options.rateLimitWindowMs ?? DEFAULT_RATE_LIMIT_WINDOW_MS,
       maxPerWindow: options.rateLimitMaxPerWindow ?? DEFAULT_RATE_LIMIT_MAX,
+    },
+    telegram: {
+      enabled: options.telegram?.enabled ?? Boolean(rawTelegramSecret),
+      webhookSecretTokenEnv: tgSecretEnvName,
+      webhookSecretHash: rawTelegramSecret ? hashGatewayToken(rawTelegramSecret) : undefined,
+      allowedUserIds: options.telegram?.allowedUserIds ?? [],
+      allowedChatIds: options.telegram?.allowedChatIds ?? [],
+      approvalTtlSeconds: options.telegram?.approvalTtlSeconds ?? DEFAULT_TELEGRAM_APPROVAL_TTL_SECONDS,
+      replayWindowUpdates: options.telegram?.replayWindowUpdates ?? DEFAULT_TELEGRAM_REPLAY_WINDOW,
     },
   };
 }

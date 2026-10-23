@@ -12,7 +12,21 @@ updates:
       minor-and-patch:
         patterns: ["*"]
         update-types: ["minor", "patch"]
-    labels: ["dependencies"]
+    ignore:
+      # ADR-A7 / §A.10.2: @types/node must track the runtime floor (Node 22.x), not latest Node 26
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # ADR-A6 / §A.7: React 19 + Ink 8 require coordinated upgrade with Windows Vietnamese IME gate
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "ink"
+        update-types: ["version-update:semver-major"]
+      # ADR-A8 / §A.10.1: TypeScript 7 held until tsup/tsx/LSP compatibility checklist passes
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+    labels: ["dependencies", "wave-5"]
     commit-message:
       prefix: "chore(deps):"
 

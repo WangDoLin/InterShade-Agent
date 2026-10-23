@@ -150,7 +150,7 @@ InterShader provides 30 built-in slash commands organized by technical domain:
 ## Installation & Quickstart
 
 ### Prerequisites
-- **Node.js**: v20.0.0 or v24+
+- **Node.js**: `>=22.5.0` (Node.js v22.5+ LTS or v24+)
 - **Git**: v2.30+
 - **ripgrep** (Recommended for fast code search): `winget install BurntSushi.ripgrep.MSVC` or `brew install ripgrep`
 

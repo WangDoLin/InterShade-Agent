@@ -24,6 +24,7 @@ export interface RemoteSignerConfig {
 
 export class IsolatedKeystore {
   private static cachedKeyPair: KeyPairInfo | null = null;
+  private static cachedSkillSignerKeyPair: KeyPairInfo | null = null;
   private static currentTrustLevel: TrustLevel = TrustLevel.LEVEL_1_LOCAL;
   private static pinnedFingerprints: Set<string> = new Set();
   private static remoteSignerConfig: RemoteSignerConfig | null = null;
@@ -212,5 +213,99 @@ export class IsolatedKeystore {
     }
 
     return false;
+  }
+
+  /**
+   * Retrieve or initialize the dedicated `skill-signer` ECDSA P-256 keypair in isolated storage (NEXT-B-11).
+   */
+  static getOrCreateSkillSignerKeyPair(): KeyPairInfo {
+    if (this.cachedSkillSignerKeyPair) {
+      return this.cachedSkillSignerKeyPair;
+    }
+
+    const keystoreDir = this.getIsolatedKeystoreDir();
+    const trustDir = this.getTrustStoreDir();
+    const privateKeyPath = path.join(keystoreDir, 'skill-signer.pem');
+    const publicKeyPath = path.join(trustDir, 'skill-signer.pub');
+
+    if (fs.existsSync(privateKeyPath) && fs.existsSync(publicKeyPath)) {
+      try {
+        const privateKeyPem = fs.readFileSync(privateKeyPath, 'utf-8');
+        const publicKeyPem = fs.readFileSync(publicKeyPath, 'utf-8');
+        const fingerprintSha256 = this.computeFingerprint(publicKeyPem);
+        this.cachedSkillSignerKeyPair = {
+          oracleKeyId: `skill-signer-${fingerprintSha256.slice(0, 12)}`,
+          fingerprintSha256,
+          publicKeyPem,
+          privateKeyPem,
+        };
+        return this.cachedSkillSignerKeyPair;
+      } catch {
+        // Regenerate if unreadable
+      }
+    }
+
+    const { publicKey, privateKey } = crypto.generateKeyPairSync('ec', {
+      namedCurve: 'prime256v1',
+      publicKeyEncoding: { type: 'spki', format: 'pem' },
+      privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+    });
+
+    const fingerprintSha256 = this.computeFingerprint(publicKey);
+    fs.writeFileSync(privateKeyPath, privateKey, { encoding: 'utf-8', mode: 0o600 });
+    fs.writeFileSync(publicKeyPath, publicKey, 'utf-8');
+
+    this.cachedSkillSignerKeyPair = {
+      oracleKeyId: `skill-signer-${fingerprintSha256.slice(0, 12)}`,
+      fingerprintSha256,
+      publicKeyPem: publicKey,
+      privateKeyPem: privateKey,
+    };
+    return this.cachedSkillSignerKeyPair;
+  }
+
+  /**
+   * Signs a canonical payload string using the isolated `skill-signer` ECDSA P-256 keypair (NEXT-B-11).
+   */
+  static signSkillPayload(canonicalPayload: string): {
+    keyId: string;
+    fingerprintSha256: string;
+    publicKeyPem: string;
+    signatureHex: string;
+  } {
+    const kp = this.getOrCreateSkillSignerKeyPair();
+    const sign = crypto.createSign('SHA256');
+    sign.update(canonicalPayload, 'utf-8');
+    sign.end();
+    const signatureHex = sign.sign(kp.privateKeyPem, 'hex');
+    return {
+      keyId: kp.oracleKeyId,
+      fingerprintSha256: kp.fingerprintSha256,
+      publicKeyPem: kp.publicKeyPem,
+      signatureHex,
+    };
+  }
+
+  /**
+   * Verifies a `skill-signer` ECDSA P-256 signature against the trusted skill-signer key (NEXT-B-11).
+   */
+  static verifySkillSignature(
+    canonicalPayload: string,
+    signatureHex: string,
+    publicKeyPem?: string
+  ): boolean {
+    try {
+      const kp = this.getOrCreateSkillSignerKeyPair();
+      const pub = publicKeyPem || kp.publicKeyPem;
+      if (this.computeFingerprint(pub).toLowerCase() !== kp.fingerprintSha256.toLowerCase()) {
+        return false;
+      }
+      const verify = crypto.createVerify('SHA256');
+      verify.update(canonicalPayload, 'utf-8');
+      verify.end();
+      return verify.verify(pub, signatureHex, 'hex');
+    } catch {
+      return false;
+    }
   }
 }

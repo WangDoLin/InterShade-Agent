@@ -5,12 +5,15 @@ import type { SkillCapabilities, SkillPackage } from './SkillLockfile.js';
 export interface SkillAllowlistEntry {
   name: string;
   enabled: boolean;
+  origin?: 'builtin' | 'upstream' | 'global' | 'workspace';
+  provenance?: 'VERIFIED' | 'LOCAL-ONLY' | 'UNVERIFIABLE';
   approvedCommitSha: string;
   approvedContentSha256: string;
   capabilitiesAllowed: SkillCapabilities;
   approvedBy: string;
   approvedAt: string;
   notes?: string;
+  quarantineReason?: string;
 }
 
 export interface SkillAllowlistData {
@@ -71,6 +74,13 @@ export class SkillAllowlist {
       return {
         allowed: false,
         reason: `Skill '${skill.metadata.name}' is currently disabled in the allowlist.`,
+      };
+    }
+
+    if (allowlist.strictMode && !entry.approvedContentSha256) {
+      return {
+        allowed: false,
+        reason: `Skill '${skill.metadata.name}' has no approvedContentSha256 digest in strictMode.`,
       };
     }
 

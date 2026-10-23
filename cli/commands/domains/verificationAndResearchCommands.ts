@@ -281,7 +281,7 @@ export const maxingCommand: LocalCommand = {
         missionGoal: goal,
         baseCwd: ctx.cwd,
         maxingBudget: 16384,
-        autoMerge: true,
+        autoMerge: ctx.args.includes('--auto-merge'),
       });
       return report.summary;
     }

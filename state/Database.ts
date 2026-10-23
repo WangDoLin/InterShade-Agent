@@ -18,13 +18,27 @@ export interface SqliteDatabase {
   close(): void;
 }
 
-const TARGET_SCHEMA_VERSION = 1;
+const TARGET_SCHEMA_VERSION = 2;
 
 let dbInstance: SqliteDatabase | null = null;
 
 /**
+ * Fold Vietnamese diacritics (including đ/Đ -> d) and normalize to lowercase ASCII
+ * for accent-insensitive FTS5 indexing and search (NEXT-C-09).
+ */
+export function foldVietnameseText(text: string): string {
+  if (!text) return '';
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase();
+}
+
+/**
  * Initialize SQLite connection with WAL (Write-Ahead Logging) mode,
- * 5000ms busy_timeout, and PRAGMA user_version schema migrations (STATE-DB-01..03).
+ * 5000ms busy_timeout, and PRAGMA user_version schema migrations (STATE-DB-01..03, NEXT-C-09..18).
  */
 export function getDatabase(): SqliteDatabase {
   if (dbInstance) {
@@ -107,6 +121,8 @@ export function getDatabase(): SqliteDatabase {
       type TEXT NOT NULL,
       title TEXT NOT NULL,
       content TEXT NOT NULL,
+      title_folded TEXT NOT NULL DEFAULT '',
+      content_folded TEXT NOT NULL DEFAULT '',
       created_at INTEGER NOT NULL
     );
 
@@ -117,12 +133,14 @@ export function getDatabase(): SqliteDatabase {
       type,
       title,
       content,
+      title_folded,
+      content_folded,
       tokenize='unicode61'
     );
 
     CREATE TRIGGER IF NOT EXISTS trg_memories_ai AFTER INSERT ON memories BEGIN
-      INSERT INTO memories_fts (id, session_id, project_id, type, title, content)
-      VALUES (new.id, new.session_id, new.project_id, new.type, new.title, new.content);
+      INSERT INTO memories_fts (id, session_id, project_id, type, title, content, title_folded, content_folded)
+      VALUES (new.id, new.session_id, new.project_id, new.type, new.title, new.content, new.title_folded, new.content_folded);
     END;
 
     CREATE TRIGGER IF NOT EXISTS trg_memories_ad AFTER DELETE ON memories BEGIN
@@ -131,8 +149,8 @@ export function getDatabase(): SqliteDatabase {
 
     CREATE TRIGGER IF NOT EXISTS trg_memories_au AFTER UPDATE ON memories BEGIN
       DELETE FROM memories_fts WHERE id = old.id;
-      INSERT INTO memories_fts (id, session_id, project_id, type, title, content)
-      VALUES (new.id, new.session_id, new.project_id, new.type, new.title, new.content);
+      INSERT INTO memories_fts (id, session_id, project_id, type, title, content, title_folded, content_folded)
+      VALUES (new.id, new.session_id, new.project_id, new.type, new.title, new.content, new.title_folded, new.content_folded);
     END;
 
     CREATE TABLE IF NOT EXISTS trajectories (
@@ -163,13 +181,43 @@ export function getDatabase(): SqliteDatabase {
       FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS plan_revisions (
+      session_id TEXT NOT NULL,
+      version INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      overview TEXT,
+      steps_json TEXT NOT NULL,
+      acceptance_criteria_json TEXT NOT NULL,
+      changelog_json TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (session_id, version),
+      FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS model_stats (
+      id TEXT PRIMARY KEY,
+      session_id TEXT,
+      model_id TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      task_type TEXT NOT NULL,
+      latency_ms INTEGER NOT NULL,
+      input_tokens INTEGER NOT NULL,
+      output_tokens INTEGER NOT NULL,
+      cost_usd REAL NOT NULL,
+      tool_call_success INTEGER NOT NULL,
+      proof_gate_passed INTEGER,
+      recorded_at INTEGER NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, timestamp);
     CREATE INDEX IF NOT EXISTS idx_snapshots_session ON file_snapshots(session_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_tasks_session ON tasks(session_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_session_plans ON session_plans(session_id);
+    CREATE INDEX IF NOT EXISTS idx_plan_revisions_session ON plan_revisions(session_id, version);
     CREATE INDEX IF NOT EXISTS idx_memories_project ON memories(project_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_trajectories_session ON trajectories(session_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_trajectories_task ON trajectories(task_id);
+    CREATE INDEX IF NOT EXISTS idx_model_stats_model ON model_stats(model_id, task_type, recorded_at);
   `);
 
   runSchemaMigrations(db);
@@ -179,9 +227,9 @@ export function getDatabase(): SqliteDatabase {
 }
 
 /**
- * Versioned schema migration runner tracked via PRAGMA user_version (STATE-DB-01).
+ * Versioned schema migration runner tracked via PRAGMA user_version (STATE-DB-01, NEXT-C-09, NEXT-C-13, NEXT-C-18).
  */
-function runSchemaMigrations(db: SqliteDatabase): void {
+export function runSchemaMigrations(db: SqliteDatabase): void {
   try {
     const row = db.prepare('PRAGMA user_version').get() as { user_version?: number } | undefined;
     const currentVersion = row?.user_version ?? 0;
@@ -215,6 +263,100 @@ function runSchemaMigrations(db: SqliteDatabase): void {
           CREATE INDEX IF NOT EXISTS idx_tasks_session ON tasks(session_id, created_at);
         `);
       }
+    }
+
+    if (currentVersion < 2) {
+      // 1. Ensure memories has title_folded and content_folded columns (NEXT-C-09)
+      const memCols = db.prepare('PRAGMA table_info(memories)').all() as Array<{ name: string }>;
+      const colNames = new Set(memCols.map((c) => c.name));
+      if (!colNames.has('title_folded')) {
+        db.exec(`ALTER TABLE memories ADD COLUMN title_folded TEXT NOT NULL DEFAULT '';`);
+      }
+      if (!colNames.has('content_folded')) {
+        db.exec(`ALTER TABLE memories ADD COLUMN content_folded TEXT NOT NULL DEFAULT '';`);
+      }
+
+      // 2. Rebuild memories_fts and triggers with folded columns
+      db.exec(`
+        DROP TRIGGER IF EXISTS trg_memories_ai;
+        DROP TRIGGER IF EXISTS trg_memories_ad;
+        DROP TRIGGER IF EXISTS trg_memories_au;
+        DROP TABLE IF EXISTS memories_fts;
+
+        CREATE VIRTUAL TABLE memories_fts USING fts5(
+          id UNINDEXED,
+          session_id UNINDEXED,
+          project_id UNINDEXED,
+          type,
+          title,
+          content,
+          title_folded,
+          content_folded,
+          tokenize='unicode61'
+        );
+
+        CREATE TRIGGER trg_memories_ai AFTER INSERT ON memories BEGIN
+          INSERT INTO memories_fts (id, session_id, project_id, type, title, content, title_folded, content_folded)
+          VALUES (new.id, new.session_id, new.project_id, new.type, new.title, new.content, new.title_folded, new.content_folded);
+        END;
+
+        CREATE TRIGGER trg_memories_ad AFTER DELETE ON memories BEGIN
+          DELETE FROM memories_fts WHERE id = old.id;
+        END;
+
+        CREATE TRIGGER trg_memories_au AFTER UPDATE ON memories BEGIN
+          DELETE FROM memories_fts WHERE id = old.id;
+          INSERT INTO memories_fts (id, session_id, project_id, type, title, content, title_folded, content_folded)
+          VALUES (new.id, new.session_id, new.project_id, new.type, new.title, new.content, new.title_folded, new.content_folded);
+        END;
+      `);
+
+      // 3. Backfill folded columns and FTS index for existing memory rows
+      const existingMemories = db
+        .prepare('SELECT id, title, content FROM memories')
+        .all() as Array<{ id: string; title: string; content: string }>;
+      const updateMemStmt = db.prepare(
+        'UPDATE memories SET title_folded = ?, content_folded = ? WHERE id = ?'
+      );
+      for (const mem of existingMemories) {
+        updateMemStmt.run(
+          foldVietnameseText(mem.title),
+          foldVietnameseText(mem.content),
+          mem.id
+        );
+      }
+
+      // 4. Backfill plan_revisions from existing session_plans.revisions_json (NEXT-C-13)
+      const existingPlans = db
+        .prepare('SELECT session_id, revisions_json FROM session_plans')
+        .all() as Array<{ session_id: string; revisions_json: string }>;
+      const insertRevStmt = db.prepare(`
+        INSERT OR IGNORE INTO plan_revisions (
+          session_id, version, title, overview, steps_json, acceptance_criteria_json, changelog_json, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const planRow of existingPlans) {
+        try {
+          const revisions = JSON.parse(planRow.revisions_json || '[]');
+          if (Array.isArray(revisions)) {
+            for (const rev of revisions) {
+              insertRevStmt.run(
+                planRow.session_id,
+                Number(rev.version || 1),
+                String(rev.title || 'Plan'),
+                rev.overview ? String(rev.overview) : null,
+                JSON.stringify(rev.steps || []),
+                JSON.stringify(rev.acceptanceCriteria || []),
+                JSON.stringify(rev.changelog || []),
+                Number(rev.timestamp || Date.now())
+              );
+            }
+          }
+        } catch {
+          // Ignore malformed legacy revisions_json
+        }
+      }
+
       db.exec(`PRAGMA user_version = ${TARGET_SCHEMA_VERSION};`);
     }
   } catch {

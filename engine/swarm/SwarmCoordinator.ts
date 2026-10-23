@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { SwarmSessionManager, type SpawnWorkerOptions } from './SwarmSessionManager.js';
 import { SwarmIntegrator } from './SwarmIntegrator.js';
+import { SwarmPolicy, resolveAutoMerge } from './SwarmPolicy.js';
 import type { SwarmRole, SwarmTask, SwarmProgressEvent, SwarmMergeResult } from './SwarmTypes.js';
 
 export interface PromptInputSpec {
@@ -158,7 +159,7 @@ export class SwarmCoordinator extends EventEmitter {
   async runParallel(
     prompts: PromptInputSpec[],
     baseCwd: string = process.cwd(),
-    autoMerge: boolean = true
+    autoMerge: boolean = SwarmPolicy.autoMerge
   ): Promise<{ tasks: SwarmTask[]; mergeResult?: SwarmMergeResult }> {
     if (prompts.length === 0) {
       return { tasks: [] };
@@ -184,7 +185,7 @@ export class SwarmCoordinator extends EventEmitter {
     const completedTasks = await this.sessionManager.executeBatch(workerSpecs, baseCwd);
 
     let mergeResult: SwarmMergeResult | undefined;
-    if (autoMerge) {
+    if (resolveAutoMerge(autoMerge)) {
       this.emit('merge_start');
       mergeResult = await SwarmIntegrator.mergeSwarmTasks(completedTasks, 'HEAD', baseCwd);
       this.emit('merge_done', mergeResult);

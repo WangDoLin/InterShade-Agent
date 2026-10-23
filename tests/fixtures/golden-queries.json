@@ -1,0 +1,108 @@
+{
+  "corpus": [
+    {
+      "key": "mem-sqlite-wal",
+      "type": "architecture",
+      "title": "Tối ưu hóa bộ nhớ SQLite FTS5 và chế độ WAL",
+      "content": "Sử dụng SQLite WAL (Write-Ahead Logging) kết hợp busy_timeout 5000ms và bảng ảo FTS5 unicode61 để truy vấn toàn văn tốc độ cao mà không khóa luồng đọc."
+    },
+    {
+      "key": "mem-telegram-webhook",
+      "type": "decision",
+      "title": "Bảo mật Telegram Webhook bằng Secret Token và chống phát lại",
+      "content": "Xác thực header X-Telegram-Bot-Api-Secret-Token bằng timingSafeEqual, kiểm tra danh sách cho phép chat.id và cửa sổ chống replay update_id."
+    },
+    {
+      "key": "mem-swarm-automerge",
+      "type": "architecture",
+      "title": "Chính sách SwarmPolicy tắt tự động gộp nhánh mặc định",
+      "content": "Mọi điều phối viên SwarmCoordinator, SwarmDepartmentCoordinator và SubagentOrchestrator phải tuân thủ SwarmPolicy.autoMerge = false và tạo MergeProposal."
+    },
+    {
+      "key": "mem-file-lock-lease",
+      "type": "bug_pattern",
+      "title": "Cơ chế khóa tệp phân tán FileLockRegistry với lease heartbeat và fencingToken",
+      "content": "Ngăn chặn deadlock khi worker bị treo bằng TTL hết hạn tự động, gia hạn heartbeat định kỳ và số thứ tự fencingToken tăng đơn điệu."
+    },
+    {
+      "key": "mem-zod-schema",
+      "type": "lesson",
+      "title": "Chuyển đổi Zod Schema sang JSON Schema tường minh không dùng _def",
+      "content": "Thay thế truy cập nội bộ _def và fail-open bằng trình biên dịch schema nghiêm ngặt, ném lỗi UnsupportedZodSchemaError khi gặp kiểu không hỗ trợ."
+    },
+    {
+      "key": "mem-secret-scrubber",
+      "type": "architecture",
+      "title": "Bộ lọc thông tin nhạy cảm hợp nhất SecretScrubber trên 6 bề mặt đầu ra",
+      "content": "Tự động che giấu khóa bí mật API, mã thông báo Bearer, khóa riêng tư PEM và mật khẩu nhúng trong URL trước khi ghi nhật ký JSONL hoặc lưu cơ sở dữ liệu."
+    },
+    {
+      "key": "mem-proof-v4",
+      "type": "decision",
+      "title": "Xác minh chéo gói bằng chứng mật mã Proof V4 và chữ ký ECDSA P-256",
+      "content": "Mỗi bản chạy kiểm thử tạo chuỗi băm Merkle và chữ ký số ECDSA P-256 thông qua VerifyCore và ProofGateRegistry để chống giả mạo kết quả."
+    },
+    {
+      "key": "mem-pytorch-kernel",
+      "type": "lesson",
+      "title": "Thực thi PyTorch có giám sát cục bộ qua NodeProcessRunner",
+      "content": "Chạy kịch bản huấn luyện mô hình học sâu trong thư mục cô lập state/ml-runs với danh sách gói cho phép và biến môi trường tối thiểu."
+    },
+    {
+      "key": "mem-compaction-pipeline",
+      "type": "architecture",
+      "title": "Đường ống nén ngữ cảnh ba giai đoạn CompactionPipeline",
+      "content": "Giảm kích thước cửa sổ ngữ cảnh theo 3 bước: cắt tỉa kết quả công cụ cũ, tóm tắt lượt hội thoại trung gian và ghim các quyết định kiến trúc cốt lõi."
+    },
+    {
+      "key": "mem-model-catalog",
+      "type": "decision",
+      "title": "Danh mục mô hình ngôn ngữ ModelCatalog và thống kê động model_stats",
+      "content": "Đồng bộ chi phí token, độ trễ p95 và tỷ lệ gọi công cụ thành công từ bảng model_stats thực tế thay vì dùng điểm số cố định."
+    },
+    {
+      "key": "mem-skill-supply-chain",
+      "type": "bug_pattern",
+      "title": "Kiểm toán chuỗi cung ứng kỹ năng và chữ ký SkillCrystallizer",
+      "content": "Loại bỏ các mã băm commit giả mạo trong skills.lock.json, phân loại kỹ năng nội bộ builtin và ký chứng thực ECDSA cho kỹ năng mới kết tinh."
+    },
+    {
+      "key": "mem-plan-revisions",
+      "type": "lesson",
+      "title": "Tách bảng lịch sử phiên bản kế hoạch plan_revisions",
+      "content": "Lưu từng phiên bản cập nhật kế hoạch vào bảng quan hệ plan_revisions thay vì nối chuỗi JSON phình to vô hạn trong session_plans."
+    }
+  ],
+  "queries": [
+    { "id": "Q01", "query": "tối ưu hóa bộ nhớ SQLite FTS5", "expectedKey": "mem-sqlite-wal", "category": "vi_accented" },
+    { "id": "Q02", "query": "toi uu hoa bo nho sqlite fts5", "expectedKey": "mem-sqlite-wal", "category": "vi_unaccented" },
+    { "id": "Q03", "query": "che do WAL khong khoa luong doc", "expectedKey": "mem-sqlite-wal", "category": "vi_unaccented" },
+    { "id": "Q04", "query": "bảo mật Telegram Webhook chống phát lại", "expectedKey": "mem-telegram-webhook", "category": "vi_accented" },
+    { "id": "Q05", "query": "bao mat telegram webhook chong phat lai", "expectedKey": "mem-telegram-webhook", "category": "vi_unaccented" },
+    { "id": "Q06", "query": "X-Telegram-Bot-Api-Secret-Token timingSafeEqual", "expectedKey": "mem-telegram-webhook", "category": "en_tech" },
+    { "id": "Q07", "query": "chính sách SwarmPolicy tắt tự động gộp nhánh", "expectedKey": "mem-swarm-automerge", "category": "vi_accented" },
+    { "id": "Q08", "query": "chinh sach swarmpolicy tat tu dong gop nhanh", "expectedKey": "mem-swarm-automerge", "category": "vi_unaccented" },
+    { "id": "Q09", "query": "SwarmCoordinator autoMerge MergeProposal", "expectedKey": "mem-swarm-automerge", "category": "en_tech" },
+    { "id": "Q10", "query": "khóa tệp phân tán FileLockRegistry", "expectedKey": "mem-file-lock-lease", "category": "vi_accented" },
+    { "id": "Q11", "query": "khoa tep phan tan filelockregistry", "expectedKey": "mem-file-lock-lease", "category": "vi_unaccented" },
+    { "id": "Q12", "query": "lease heartbeat fencingToken deadlock", "expectedKey": "mem-file-lock-lease", "category": "en_tech" },
+    { "id": "Q13", "query": "chuyển đổi Zod Schema sang JSON Schema", "expectedKey": "mem-zod-schema", "category": "vi_accented" },
+    { "id": "Q14", "query": "chuyen doi zod schema sang json schema", "expectedKey": "mem-zod-schema", "category": "vi_unaccented" },
+    { "id": "Q15", "query": "UnsupportedZodSchemaError fail-open", "expectedKey": "mem-zod-schema", "category": "en_tech" },
+    { "id": "Q16", "query": "bộ lọc thông tin nhạy cảm SecretScrubber", "expectedKey": "mem-secret-scrubber", "category": "vi_accented" },
+    { "id": "Q17", "query": "bo loc thong tin nhay cam secretscrubber", "expectedKey": "mem-secret-scrubber", "category": "vi_unaccented" },
+    { "id": "Q18", "query": "che giau khoa bi mat API va khoa rieng tu PEM", "expectedKey": "mem-secret-scrubber", "category": "vi_unaccented" },
+    { "id": "Q19", "query": "xác minh chéo gói bằng chứng mật mã Proof V4", "expectedKey": "mem-proof-v4", "category": "vi_accented" },
+    { "id": "Q20", "query": "xac minh cheo goi bang chung mat ma proof v4", "expectedKey": "mem-proof-v4", "category": "vi_unaccented" },
+    { "id": "Q21", "query": "VerifyCore ProofGateRegistry ECDSA P-256", "expectedKey": "mem-proof-v4", "category": "en_tech" },
+    { "id": "Q22", "query": "thực thi PyTorch có giám sát cục bộ", "expectedKey": "mem-pytorch-kernel", "category": "vi_accented" },
+    { "id": "Q23", "query": "thuc thi pytorch co giam sat cuc bo", "expectedKey": "mem-pytorch-kernel", "category": "vi_unaccented" },
+    { "id": "Q24", "query": "NodeProcessRunner state/ml-runs", "expectedKey": "mem-pytorch-kernel", "category": "en_tech" },
+    { "id": "Q25", "query": "đường ống nén ngữ cảnh ba giai đoạn", "expectedKey": "mem-compaction-pipeline", "category": "vi_accented" },
+    { "id": "Q26", "query": "duong ong nen ngu canh ba giai doan", "expectedKey": "mem-compaction-pipeline", "category": "vi_unaccented" },
+    { "id": "Q27", "query": "danh mục mô hình ngôn ngữ và thống kê động model_stats", "expectedKey": "mem-model-catalog", "category": "vi_accented" },
+    { "id": "Q28", "query": "danh muc mo hinh ngon ngu model_stats", "expectedKey": "mem-model-catalog", "category": "vi_unaccented" },
+    { "id": "Q29", "query": "kiểm toán chuỗi cung ứng kỹ năng SkillCrystallizer", "expectedKey": "mem-skill-supply-chain", "category": "vi_accented" },
+    { "id": "Q30", "query": "tach bang lich su phien ban ke hoach plan_revisions", "expectedKey": "mem-plan-revisions", "category": "vi_unaccented" }
+  ]
+}

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { BaseTool } from '../BaseTool.js';
 import type { ToolExecutionContext } from '../../types/index.js';
 import { SubagentOrchestrator } from '../../engine/swarm/SubagentOrchestrator.js';
+import { SwarmPolicy, resolveAutoMerge } from '../../engine/swarm/SwarmPolicy.js';
 import type { SubtaskSpec } from '../../engine/swarm/SwarmTypes.js';
 
 export interface DecomposeAndDispatchArgs {
@@ -42,7 +43,7 @@ export class DecomposeAndDispatchTool extends BaseTool<DecomposeAndDispatchArgs,
     autoMerge: z
       .boolean()
       .optional()
-      .default(true)
+      .default(SwarmPolicy.autoMerge)
       .describe('Whether to automatically verify and merge completed subagent branches into main repository'),
   });
 
@@ -57,7 +58,7 @@ export class DecomposeAndDispatchTool extends BaseTool<DecomposeAndDispatchArgs,
       overallGoal: args.overallGoal,
       subtasks: args.subtasks,
       baseCwd: context.cwd,
-      autoMerge: args.autoMerge !== false,
+      autoMerge: resolveAutoMerge(args.autoMerge),
       onProgress: context.onProgress,
     });
 

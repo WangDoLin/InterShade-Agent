@@ -9,7 +9,7 @@
     "intershade": "./dist/index.js"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.5.0"
   },
   "scripts": {
     "dev": "tsx cli/index.ts",
@@ -40,7 +40,7 @@
     "@anthropic-ai/sdk": "^0.39.0",
     "@google/generative-ai": "^0.24.0",
     "@modelcontextprotocol/sdk": "^1.6.1",
-    "chalk": "^5.4.1",
+
     "cli-highlight": "^2.1.11",
     "commander": "^13.1.0",
     "diff": "^7.0.0",

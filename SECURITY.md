@@ -23,7 +23,7 @@ InterShader enforces defense-in-depth across its CLI, Gateway daemon, MCP client
 3. **Subprocess & Worktree Isolation (`ENG-010`, `ENG-042`, `ENG-045`)**:
    - External verification commands run through `NodeProcessRunner` with mandatory timeouts, bounded output buffers (`maxOutputBytes`), and SHA-256 output digests.
    - Swarm `FileLockRegistry` normalizes paths and enforces strict path-segment boundary checks, rejecting `..` traversal attempts.
-   - `SubagentOrchestrator` defaults `autoMerge` to `false` unless explicitly opted in.
+   - All swarm entrypoints (`SwarmCoordinator`, `SwarmDepartmentCoordinator`, `SubagentOrchestrator`) enforce `SwarmPolicy.autoMerge = false` unless explicitly opted in.
 4. **Cryptographic Proof Bundles (`Proof V4`)**:
    - Verification runs emit canonical JSON manifests (`RFC 8785`), Merkle evidence trees, and Ed25519/ECDSA signatures verifiable offline via `StandaloneVerifier`.
 

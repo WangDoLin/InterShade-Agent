@@ -7,7 +7,7 @@ import { ZeroTurnBatcher } from '../../engine/ZeroTurnBatcher.js';
 const BatchOperationSchema = z.object({
   id: z.string().describe('Unique identifier for this operation in the batch'),
   tool: z.string().describe('Name of the tool to execute (e.g. file_read, file_edit, grep_search)'),
-  args: z.record(z.any()).describe('Arguments object to pass to the tool'),
+  args: z.record(z.string(), z.unknown()).describe('Arguments object to pass to the tool'),
 });
 
 const BatchExecuteInputSchema = z.object({

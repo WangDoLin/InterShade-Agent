@@ -1,6 +1,5 @@
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
-import path from 'node:path';
 import { QueryEngine } from '../../orchestrator/QueryEngine.js';
 import { OrcaWorktreeOrchestrator } from '../orchestration/OrcaWorktreeOrchestrator.js';
 import { SwarmIntegrator } from './SwarmIntegrator.js';
@@ -8,11 +7,22 @@ import { FileLockRegistry } from './FileLockRegistry.js';
 import type { SwarmRole, SwarmMergeResult, SwarmTask } from './SwarmTypes.js';
 import type { SessionConfig } from '../../types/index.js';
 
+/**
+ * Port interface decoupling MultiSessionPool from concrete QueryEngine implementation (NEXT-C-01).
+ */
+export interface SessionExecutor extends EventEmitter {
+  getSessionState(): { id: string; cwd: string };
+  abort(): void;
+}
+
+export type SessionExecutorFactory = (config: SessionConfig) => SessionExecutor;
+
 export interface SessionTab {
   id: string;
   title: string;
   role: SwarmRole;
   queryEngine: QueryEngine;
+  executor: SessionExecutor;
   isPrimary: boolean;
   worktreePath: string;
   branch?: string;
@@ -40,10 +50,13 @@ export class MultiSessionPool extends EventEmitter {
   private tabs: SessionTab[] = [];
   private activeTabId: string = '';
   private baseCwd: string = process.cwd();
-  private baseConfig: SessionConfig | null = null;
+  private executorFactory: SessionExecutorFactory = (cfg) => new QueryEngine(cfg);
 
-  private constructor() {
+  constructor(executorFactory?: SessionExecutorFactory) {
     super();
+    if (executorFactory) {
+      this.executorFactory = executorFactory;
+    }
   }
 
   static getInstance(): MultiSessionPool {
@@ -51,6 +64,13 @@ export class MultiSessionPool extends EventEmitter {
       this.instance = new MultiSessionPool();
     }
     return this.instance;
+  }
+
+  /**
+   * Override the SessionExecutor factory for dependency injection / testing (NEXT-C-01).
+   */
+  setExecutorFactory(factory: SessionExecutorFactory): void {
+    this.executorFactory = factory;
   }
 
   /**
@@ -66,7 +86,7 @@ export class MultiSessionPool extends EventEmitter {
   /**
    * Initialize the primary session (Tab 1: Main workspace).
    */
-  initPrimary(primaryEngine: QueryEngine, title = 'Main Workspace'): SessionTab {
+  initPrimary(primaryEngine: SessionExecutor, title = 'Main Workspace'): SessionTab {
     const existing = this.tabs.find((t) => t.isPrimary);
     if (existing) {
       return existing;
@@ -79,7 +99,8 @@ export class MultiSessionPool extends EventEmitter {
       id: state.id,
       title,
       role: 'general',
-      queryEngine: primaryEngine,
+      queryEngine: primaryEngine as QueryEngine,
+      executor: primaryEngine,
       isPrimary: true,
       worktreePath: state.cwd,
       status: 'idle',
@@ -122,9 +143,9 @@ export class MultiSessionPool extends EventEmitter {
       }
     }
 
-    // Configure dedicated QueryEngine for this secondary tab
+    // Configure dedicated SessionExecutor for this secondary tab
     const primaryTab = this.tabs.find((t) => t.isPrimary);
-    const template = configTemplate || (primaryTab ? (primaryTab.queryEngine as any).sessionConfig : undefined);
+    const template = configTemplate || (primaryTab ? (primaryTab.executor as any).sessionConfig : undefined);
 
     const sessionConfig: SessionConfig = {
       ...(template || {}),
@@ -137,7 +158,7 @@ export class MultiSessionPool extends EventEmitter {
       resumeSession: false,
     };
 
-    const secondaryEngine = new QueryEngine(sessionConfig);
+    const secondaryEngine = this.executorFactory(sessionConfig);
 
     // Register assigned scopes in FileLockRegistry if specified
     if (options.scope && options.scope.length > 0) {
@@ -148,7 +169,8 @@ export class MultiSessionPool extends EventEmitter {
       id,
       title: safeTitle,
       role,
-      queryEngine: secondaryEngine,
+      queryEngine: secondaryEngine as QueryEngine,
+      executor: secondaryEngine,
       isPrimary: false,
       worktreePath,
       branch,
@@ -224,7 +246,7 @@ export class MultiSessionPool extends EventEmitter {
 
     // Abort any ongoing query
     try {
-      tab.queryEngine.abort();
+      tab.executor.abort();
     } catch {
       // ignore
     }
@@ -296,19 +318,19 @@ export class MultiSessionPool extends EventEmitter {
   }
 
   private wireEngineEvents(tab: SessionTab): void {
-    tab.queryEngine.on('tool_start', (name: string) => {
+    tab.executor.on('tool_start', (name: string) => {
       tab.status = 'running';
       this.emit('tab_progress', { tabId: tab.id, status: 'running', tool: name });
     });
 
-    tab.queryEngine.on('tool_done', () => {
+    tab.executor.on('tool_done', () => {
       if (this.activeTabId !== tab.id) {
         tab.unreadOutputs++;
       }
       this.emit('tab_updated', tab);
     });
 
-    tab.queryEngine.on('done', () => {
+    tab.executor.on('done', () => {
       tab.status = 'idle';
       if (this.activeTabId !== tab.id) {
         tab.unreadOutputs++;
@@ -317,7 +339,7 @@ export class MultiSessionPool extends EventEmitter {
       this.emit('tab_updated', tab);
     });
 
-    tab.queryEngine.on('error', () => {
+    tab.executor.on('error', () => {
       tab.status = 'error';
       this.emit('tab_progress', { tabId: tab.id, status: 'error' });
       this.emit('tab_updated', tab);
