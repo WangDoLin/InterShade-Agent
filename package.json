@@ -44,7 +44,7 @@
     "cli-highlight": "^2.1.11",
     "commander": "^13.1.0",
     "diff": "^7.0.0",
-    "dotenv": "^16.4.7",
+    "dotenv": "^18.0.8",
     "fast-glob": "^3.3.3",
     "ignore": "^7.0.3",
     "ink": "^5.1.0",
