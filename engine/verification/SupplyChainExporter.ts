@@ -29,6 +29,19 @@ export class SupplyChainExporter {
   }
 
   /**
+   * Validates and returns the manifest's evaluatorVersion, refusing to fabricate a fallback version (ENG-005).
+   */
+  static requireEvaluatorVersion(manifest: ProofManifest): string {
+    const version = manifest.evaluatorVersion?.trim();
+    if (!version) {
+      throw new Error(
+        '[REJECT_MISSING_EVALUATOR_VERSION]: ProofManifest is missing required evaluatorVersion provenance.',
+      );
+    }
+    return version;
+  }
+
+  /**
    * Export InterShader Proof Manifest to standard in-toto Attestation format (link/v0.3)
    * In in-toto Statement v1 with link/v0.3 predicate:
    * - Statement subject represents output products (build artifact).
@@ -154,6 +167,7 @@ export class SupplyChainExporter {
    * resolvedDependencies: verified source snapshot and build dependencies
    */
   static exportSlsaProvenanceV12(manifest: ProofManifest): InTotoStatement {
+    const evaluatorVersion = SupplyChainExporter.requireEvaluatorVersion(manifest);
     const buildDigest = manifest.buildArtifactDigest || manifest.artifactDigest || manifest.manifestHashSha256;
 
     return {
@@ -178,7 +192,7 @@ export class SupplyChainExporter {
             targetFiles: manifest.changedFiles,
           },
           internalParameters: {
-            evaluatorVersion: manifest.evaluatorVersion || '2.5.0-attested',
+            evaluatorVersion,
             platform: manifest.environmentFingerprint?.platform || process.platform,
             nodeVersion: process.versions.node,
           },
@@ -215,7 +229,7 @@ export class SupplyChainExporter {
             // When executing local compilation/packaging, it attests to the creation of the build artifact.
             id: 'https://intershader.dev/attestation-authority/v4.2/local-node-engine',
             version: {
-              engine: manifest.evaluatorVersion || '2.5.0-attested',
+              engine: evaluatorVersion,
             },
           },
           metadata: {
@@ -244,6 +258,7 @@ export class SupplyChainExporter {
    * Export InterShader Proof Manifest to standard SLSA Provenance v1.0 format (Legacy / Compatibility)
    */
   static exportSlsaProvenance(manifest: ProofManifest): InTotoStatement {
+    const evaluatorVersion = SupplyChainExporter.requireEvaluatorVersion(manifest);
     const buildDigest = manifest.buildArtifactDigest || manifest.artifactDigest || manifest.manifestHashSha256;
 
     return {
@@ -265,7 +280,7 @@ export class SupplyChainExporter {
             targetFiles: manifest.changedFiles,
           },
           internalParameters: {
-            evaluatorVersion: (manifest as any).evaluatorVersion || '2.5.0-attested',
+            evaluatorVersion,
             platform: process.platform,
           },
           resolvedDependencies: [
@@ -281,7 +296,7 @@ export class SupplyChainExporter {
           builder: {
             id: 'https://intershader.dev/attestation-authority/v4.2/local-node-engine',
             version: {
-              engine: (manifest as any).evaluatorVersion || '2.5.0',
+              engine: evaluatorVersion,
             },
           },
           metadata: {

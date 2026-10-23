@@ -54,6 +54,23 @@ async function testFileLockRegistry() {
   assert.ok(releasedCount >= 1, 'Should release all leases for session-2');
   assert.strictEqual(FileLockRegistry.getLease(testFileA), undefined, 'testFileA should have no active lease');
 
+  // Test 7 (ENG-042): Boundary enforcement — prevent substring bypass (e.g. src/services-evil or ../ traversal)
+  assert.strictEqual(
+    FileLockRegistry.isFileInScope('src/services-evil/hack.ts', ['src/services/**']),
+    false,
+    'ENG-042: Prefix lookalike directory must be rejected'
+  );
+  assert.strictEqual(
+    FileLockRegistry.isFileInScope('src/services/../ui/Secret.tsx', ['src/services/**']),
+    false,
+    'ENG-042: Path traversal segment (..) must be rejected'
+  );
+  assert.strictEqual(
+    FileLockRegistry.isFileInScope('src/other/my-auth.ts', ['auth.ts']),
+    false,
+    'ENG-042: Substring filename lookalike must be rejected'
+  );
+
   console.log('All FileLockRegistry tests passed successfully!');
 }
 

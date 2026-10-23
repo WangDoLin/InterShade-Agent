@@ -44,10 +44,6 @@ export interface AppConfig {
 const homeDir = os.homedir();
 const intershaderDataDir = path.join(homeDir, '.intershade');
 
-if (!fs.existsSync(intershaderDataDir)) {
-  fs.mkdirSync(intershaderDataDir, { recursive: true });
-}
-
 export const config: AppConfig = {
   anthropicApiKey: process.env.ANTHROPIC_API_KEY,
   openaiApiKey: process.env.OPENAI_API_KEY,
@@ -68,4 +64,16 @@ export const config: AppConfig = {
   })(),
   dataDir: intershaderDataDir,
 };
+
+/**
+ * Lazily ensure that the application data directory exists before disk I/O.
+ * Never executed at module import time (CONF-001).
+ */
+export function ensureDataDir(customDir?: string): string {
+  const targetDir = customDir ?? config.dataDir;
+  if (!fs.existsSync(targetDir)) {
+    fs.mkdirSync(targetDir, { recursive: true });
+  }
+  return targetDir;
+}
 

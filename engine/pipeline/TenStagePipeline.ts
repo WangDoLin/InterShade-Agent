@@ -21,10 +21,12 @@ export interface PipelineExecutionReport {
 }
 
 export class TenStagePipeline extends EventEmitter {
-  private stages: PipelineStage[];
+  private readonly stages: PipelineStage[];
+  private readonly cleanupStage: CleanupSynthesisStage;
 
   constructor() {
     super();
+    this.cleanupStage = new CleanupSynthesisStage();
     this.stages = [
       new IntentScopeStage(),
       new ReconMappingStage(),
@@ -35,7 +37,7 @@ export class TenStagePipeline extends EventEmitter {
       new ApplySavepointStage(),
       new GreenVerifyStage(),
       new AdversarialAuditStage(),
-      new CleanupSynthesisStage()
+      this.cleanupStage
     ];
   }
 
@@ -91,8 +93,7 @@ export class TenStagePipeline extends EventEmitter {
 
           // Execute cleanup stage if failed early
           if (stage.index < 10) {
-            const cleanupStage = this.stages[9];
-            await cleanupStage.execute(context);
+            await this.cleanupStage.execute(context);
           }
           break;
         }
@@ -114,8 +115,7 @@ export class TenStagePipeline extends EventEmitter {
         }
 
         if (stage.index < 10) {
-          const cleanupStage = this.stages[9];
-          await cleanupStage.execute(context);
+          await this.cleanupStage.execute(context);
         }
         break;
       }

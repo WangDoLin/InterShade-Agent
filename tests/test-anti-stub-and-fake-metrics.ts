@@ -2,6 +2,11 @@ import assert from 'node:assert';
 import path from 'node:path';
 import { AntiStubAstScanner } from '../engine/verification/AntiStubAstScanner.js';
 import { MetricProvenanceValidator } from '../engine/guards/MetricProvenanceValidator.js';
+import { ModelTournament } from '../engine/routing/ModelTournament.js';
+import { CapabilityModelRegistry } from '../engine/routing/CapabilityModelRegistry.js';
+import { PatchGenStage } from '../engine/pipeline/stages/06_PatchGenStage.js';
+import { RootCauseStage } from '../engine/pipeline/stages/04_RootCauseStage.js';
+import { SupplyChainExporter } from '../engine/verification/SupplyChainExporter.js';
 import { QueryEngine } from '../orchestrator/QueryEngine.js';
 import type { SessionConfig, UnifiedMessage } from '../types/index.js';
 
@@ -151,4 +156,116 @@ assert.ok(
 );
 console.log('✔ Test 7 Passed: QueryEngine system prompt primed with anti-fake directives.');
 
-console.log('\n🎉 ALL 7 ANTI-SUPERFICIALITY & ANTI-FAKE METRICS TESTS PASSED (100% EMPIRICAL PROOF)!');
+// ==========================================
+// TEST 8: Honesty Fixes ENG-001..ENG-005 (No Fabricated Evidence)
+// ==========================================
+console.log('Test 8: Verifying ENG-001..ENG-005 anti-fake-evidence invariants');
+
+// ENG-001: ModelTournament must disqualify candidates missing test results (never default to 10/10 pass)
+const missingEvidenceTournament = ModelTournament.evaluateTournament(
+  'ENG-001-CHECK',
+  'Verify missing test results disqualification',
+  [
+    {
+      modelId: 'untested-model',
+      modelName: 'Untested Model',
+      provider: 'openai',
+      patchDescription: 'Patch without test run',
+      modifiedFiles: ['cli/index.ts'],
+      buildPassed: true,
+    },
+  ],
+  process.cwd(),
+  ['cli/index.ts'],
+);
+assert.strictEqual(
+  missingEvidenceTournament.evaluations[0].verdict,
+  'DISQUALIFIED',
+  'Candidate without test results must be DISQUALIFIED (ENG-001)',
+);
+assert.ok(
+  missingEvidenceTournament.evaluations[0].disqualificationReason?.includes('EVIDENCE_MISSING'),
+  'Disqualification reason must cite EVIDENCE_MISSING (ENG-001)',
+);
+
+// ENG-002 & ENG-003: Stage 04 and Stage 06 must not fabricate scores or hide heuristic template status
+const mockCtx: any = {
+  userPrompt: 'Fix null token check in cli/index.ts',
+  cwd: process.cwd(),
+  scopeSpec: {
+    intentSummary: 'Fix null check',
+    inScopeFiles: ['cli/index.ts'],
+    outOfBoundsFiles: [],
+    acceptanceCriteria: [],
+    targets: { files: ['cli/index.ts'], directories: [], symbols: [] },
+    allowedOperations: ['modify'],
+    forbiddenPaths: [],
+    confidence: 0.9,
+  },
+  executionPlan: {
+    steps: [
+      {
+        targetFile: 'cli/index.ts',
+        action: 'modify',
+        operation: 'replace',
+        rationale: 'Add guard',
+      },
+    ],
+  },
+  appliedPatches: [],
+  changeBudget: { maxFiles: 3, maxAddedLines: 50, maxDeletedLines: 50 },
+  auditFindings: [],
+  isAuditPassed: false,
+  pipelineStatus: 'FAILED',
+  logs: [],
+};
+await new RootCauseStage().execute(mockCtx);
+assert.strictEqual(
+  mockCtx.rootCauseReport.hypothesisSource,
+  'heuristic-template',
+  'Stage 04 must transparently label heuristic-template when no empirical repro output is present (ENG-003)',
+);
+await new PatchGenStage().execute(mockCtx);
+for (const patch of mockCtx.candidatePatches) {
+  assert.strictEqual(
+    patch.scores,
+    undefined,
+    'Stage 06 must not assign hardcoded 96/89/86 scores before Stage 08 verification (ENG-002)',
+  );
+}
+
+// ENG-004: CapabilityModelRegistry must not ship fabricated historicalPassRate
+for (const profile of CapabilityModelRegistry.getAllModels()) {
+  if (!profile.telemetryProvenance) {
+    assert.strictEqual(
+      profile.historicalPassRate,
+      null,
+      `Model ${profile.id} must have null historicalPassRate until empirical telemetry is recorded (ENG-004)`,
+    );
+    assert.strictEqual(profile.totalTasksExecuted, 0);
+  }
+}
+
+// ENG-005: SupplyChainExporter must reject manifests missing evaluatorVersion
+assert.throws(
+  () =>
+    SupplyChainExporter.exportSlsaProvenanceV12({
+      protocolVersion: '1.0',
+      policyVersion: '1.0',
+      runId: 'run-missing-ver',
+      startedAt: new Date().toISOString(),
+      completedAt: new Date().toISOString(),
+      overallPassed: true,
+      score: 100,
+      riskTier: 'LOW',
+      changedFiles: [],
+      gates: {},
+      manifestHashSha256: 'a'.repeat(64),
+      evaluatorVersion: '',
+    } as any),
+  /REJECT_MISSING_EVALUATOR_VERSION/,
+  'SupplyChainExporter must reject empty/missing evaluatorVersion instead of fabricating 2.5.0-attested (ENG-005)',
+);
+console.log('✔ Test 8 Passed: All ENG-001..ENG-005 honesty invariants verified.');
+
+console.log('\n🎉 ALL 8 ANTI-SUPERFICIALITY & ANTI-FAKE METRICS TESTS PASSED (100% EMPIRICAL PROOF)!');

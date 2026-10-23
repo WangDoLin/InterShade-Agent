@@ -21,40 +21,73 @@ export class FileLockRegistry {
   }
 
   /**
-   * Check if a file path is permitted within the session's assigned scopes
+   * Check if a file path is permitted within the session's assigned scopes (ENG-042).
+   * Enforces strict path segment boundary and glob matching instead of naive substring inclusion.
    */
   static isFileInScope(filePath: string, scopes?: string[]): boolean {
     if (!scopes || scopes.length === 0 || scopes.includes('*')) {
       return true;
     }
 
-    const normalizedPath = filePath.replace(/\\/g, '/').toLowerCase();
+    const rawNormalized = filePath.replace(/\\/g, '/').toLowerCase();
+    // Reject traversal segments
+    const segments = rawNormalized.split('/');
+    if (segments.includes('..')) {
+      return false;
+    }
+
+    const cwdPrefix = process.cwd().replace(/\\/g, '/').toLowerCase().replace(/\/+$/, '') + '/';
+    const relPath = rawNormalized.startsWith(cwdPrefix)
+      ? rawNormalized.slice(cwdPrefix.length)
+      : rawNormalized.replace(/^\/+/, '');
 
     return scopes.some((pattern) => {
-      const normalizedPattern = pattern.replace(/\\/g, '/').toLowerCase();
+      const normalizedPattern = pattern.trim().replace(/\\/g, '/').toLowerCase().replace(/^\/+/, '');
+      if (!normalizedPattern) return false;
 
-      if (normalizedPattern === '*' || normalizedPattern === '**') {
+      if (normalizedPattern === '*' || normalizedPattern === '**' || normalizedPattern === '**/*') {
         return true;
       }
 
-      // Exact prefix or directory match: "src/services/**" or "src/services/"
-      if (normalizedPattern.endsWith('/**')) {
-        const prefix = normalizedPattern.slice(0, -3);
-        return normalizedPath.startsWith(prefix) || normalizedPath.includes('/' + prefix);
+      // Directory recursive glob: "src/services/**" or "src/services/"
+      if (normalizedPattern.endsWith('/**') || normalizedPattern.endsWith('/')) {
+        const prefix = normalizedPattern.replace(/\/\*\*$/, '').replace(/\/+$/, '');
+        return (
+          relPath === prefix ||
+          relPath.startsWith(prefix + '/') ||
+          rawNormalized.includes('/' + prefix + '/')
+        );
       }
+
+      // Single-directory wildcard: "src/services/*"
       if (normalizedPattern.endsWith('/*')) {
         const prefix = normalizedPattern.slice(0, -2);
-        return normalizedPath.startsWith(prefix);
+        if (relPath.startsWith(prefix + '/')) {
+          const remainder = relPath.slice(prefix.length + 1);
+          return remainder.length > 0 && !remainder.includes('/');
+        }
+        const marker = '/' + prefix + '/';
+        const idx = rawNormalized.indexOf(marker);
+        if (idx !== -1) {
+          const remainder = rawNormalized.slice(idx + marker.length);
+          return remainder.length > 0 && !remainder.includes('/');
+        }
+        return false;
       }
 
       // Extension wildcard: "*.ts" or "**/*.tsx"
-      if (normalizedPattern.startsWith('*.')) {
-        const ext = normalizedPattern.slice(1);
-        return normalizedPath.endsWith(ext);
+      if (normalizedPattern.startsWith('*.') || normalizedPattern.startsWith('**/*.')) {
+        const ext = normalizedPattern.slice(normalizedPattern.lastIndexOf('.'));
+        return relPath.endsWith(ext);
       }
 
-      // Substring match
-      return normalizedPath.includes(normalizedPattern);
+      // Exact path or segment-boundary suffix match (never arbitrary substring like "src/api" matching "src/api-evil/x.ts")
+      return (
+        relPath === normalizedPattern ||
+        relPath.startsWith(normalizedPattern + '/') ||
+        rawNormalized.endsWith('/' + normalizedPattern) ||
+        rawNormalized.includes('/' + normalizedPattern + '/')
+      );
     });
   }
 

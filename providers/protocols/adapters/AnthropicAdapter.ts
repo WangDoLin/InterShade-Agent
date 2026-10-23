@@ -52,21 +52,39 @@ class AnthropicLanguageModel implements LanguageModel {
     try {
       yield { type: 'response.start' };
 
+      const isThinking = Boolean(
+        request.reasoning?.budgetTokens &&
+          request.reasoning.budgetTokens > 0 &&
+          this.descriptor.capabilities.reasoningControl !== 'unsupported'
+      );
+      const budgetTokens = request.reasoning?.budgetTokens || 0;
+
+      const systemBlocks: Anthropic.TextBlockParam[] | undefined = systemPrompt
+        ? [
+            {
+              type: 'text',
+              text: systemPrompt,
+              cache_control: { type: 'ephemeral' },
+            },
+          ]
+        : undefined;
+
       const streamParams: Anthropic.MessageCreateParams = {
         model: request.modelId,
-        max_tokens: request.generation?.maxTokens ?? 8192,
-        system: systemPrompt || undefined,
+        max_tokens: isThinking
+          ? Math.max(16384, budgetTokens + 8192)
+          : (request.generation?.maxTokens ?? 8192),
+        system: systemBlocks,
         messages,
         tools: anthropicTools.length > 0 ? anthropicTools : undefined,
-        temperature: request.generation?.temperature ?? 0.2,
+        temperature: isThinking ? 1.0 : (request.generation?.temperature ?? 0.2),
       };
 
-      if (request.reasoning?.budgetTokens && this.descriptor.capabilities.reasoningControl) {
+      if (isThinking) {
         streamParams.thinking = {
           type: 'enabled',
-          budget_tokens: request.reasoning.budgetTokens,
+          budget_tokens: budgetTokens,
         };
-        streamParams.temperature = 1.0;
       }
 
       const stream = client.messages.stream(streamParams, {
@@ -141,7 +159,13 @@ class AnthropicLanguageModel implements LanguageModel {
         };
       }
 
-      yield { type: 'response.finish', reason: hasToolCall ? 'tool_use' : 'end_turn' };
+      const reason =
+        finalMessage.stop_reason === 'tool_use' || hasToolCall
+          ? 'tool_use'
+          : finalMessage.stop_reason === 'max_tokens'
+          ? 'max_tokens'
+          : 'end_turn';
+      yield { type: 'response.finish', reason };
     } catch (err) {
       const normalized = ProviderError.fromUnknown(err);
       yield { type: 'error', error: normalized };
@@ -152,11 +176,17 @@ class AnthropicLanguageModel implements LanguageModel {
     if (!request.tools || request.tools.length === 0) {
       return [];
     }
-    return request.tools.map((t) => ({
+    const tools: Anthropic.Tool[] = request.tools.map((t) => ({
       name: t.name,
       description: t.description,
       input_schema: zodToJsonSchema(t.inputSchema) as Anthropic.Tool.InputSchema,
     }));
+    if (tools.length > 0) {
+      (tools[tools.length - 1] as unknown as Record<string, unknown>).cache_control = {
+        type: 'ephemeral',
+      };
+    }
+    return tools;
   }
 
   private buildMessages(request: ModelRequest): { systemPrompt: string; messages: Anthropic.MessageParam[] } {
@@ -185,17 +215,21 @@ class AnthropicLanguageModel implements LanguageModel {
         }
         messages.push({ role: 'assistant', content: blocks });
       } else if (msg.role === 'tool' && msg.toolResult) {
-        messages.push({
-          role: 'user',
-          content: [
-            {
-              type: 'tool_result',
-              tool_use_id: msg.toolResult.toolCallId,
-              content: msg.toolResult.content,
-              is_error: msg.toolResult.isError,
-            },
-          ],
-        });
+        const toolResultBlock: Anthropic.ToolResultBlockParam = {
+          type: 'tool_result',
+          tool_use_id: msg.toolResult.toolCallId,
+          content: msg.toolResult.content,
+          is_error: msg.toolResult.isError,
+        };
+        const lastMsg = messages[messages.length - 1];
+        if (lastMsg && lastMsg.role === 'user' && Array.isArray(lastMsg.content)) {
+          (lastMsg.content as Anthropic.ContentBlockParam[]).push(toolResultBlock);
+        } else {
+          messages.push({
+            role: 'user',
+            content: [toolResultBlock],
+          });
+        }
       }
     }
 

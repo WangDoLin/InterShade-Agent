@@ -72,9 +72,16 @@ export class BridgedLanguageModelProvider extends BaseProvider {
           cacheReadTokens: event.usage.cacheReadTokens,
         };
       } else if (event.type === 'response.finish') {
-        yield { type: 'finish', reason: event.reason };
+        yield {
+          type: 'finish',
+          reason: event.reason === 'content_filter' ? 'stop' : event.reason,
+        };
       } else if (event.type === 'error') {
-        yield { type: 'error', error: new Error(event.error.message) };
+        // PROV-003: Preserve structured ProviderError metadata (code, statusCode, retryable)
+        yield {
+          type: 'error',
+          error: event.error instanceof Error ? event.error : new ProviderError(event.error),
+        };
       }
       // 'response.start' is ignored for legacy streamChat
     }

@@ -12,15 +12,65 @@ export interface McpServerConfig {
   args?: string[];
   env?: Record<string, string>;
   disabled?: boolean;
+  trusted?: boolean;
 }
 
 export interface McpConfigFile {
   mcpServers?: Record<string, McpServerConfig>;
 }
 
+const SAFE_ENV_ALLOWLIST = new Set([
+  'PATH',
+  'Path',
+  'SystemRoot',
+  'SYSTEMROOT',
+  'ComSpec',
+  'COMSPEC',
+  'WINDIR',
+  'windir',
+  'HOME',
+  'USERPROFILE',
+  'APPDATA',
+  'LOCALAPPDATA',
+  'TEMP',
+  'TMP',
+  'TMPDIR',
+  'LANG',
+  'LC_ALL',
+  'TERM',
+  'NODE_ENV',
+]);
+
+const SENSITIVE_ENV_PATTERN = /(API_KEY|SECRET|TOKEN|PASSWORD|PRIVATE_KEY|CREDENTIAL)/i;
+
 export class McpClientManager {
   private static activeClients: Map<string, Client> = new Map();
   private static registeredTools: Map<string, string> = new Map(); // toolName -> serverName
+
+  /**
+   * Builds a sanitized environment dictionary for child MCP servers, stripping ambient secrets
+   * unless explicitly passed in the server's own configuration block.
+   */
+  static buildSafeMcpEnv(
+    explicitEnv?: Record<string, string>,
+    ambientEnv: NodeJS.ProcessEnv = process.env,
+  ): Record<string, string> {
+    const cleanEnv: Record<string, string> = {};
+    for (const [key, value] of Object.entries(ambientEnv)) {
+      if (value === undefined) continue;
+      if (SAFE_ENV_ALLOWLIST.has(key) && !SENSITIVE_ENV_PATTERN.test(key)) {
+        cleanEnv[key] = value;
+      }
+    }
+    if (explicitEnv) {
+      for (const [key, value] of Object.entries(explicitEnv)) {
+        if (typeof value === 'string') {
+          cleanEnv[key] = value;
+        }
+      }
+    }
+    return cleanEnv;
+  }
 
   /**
    * Discovers and resolves MCP configuration file
@@ -40,7 +90,7 @@ export class McpClientManager {
   }
 
   /**
-   * Initializes MCP servers from configuration and registers their tools
+   * Initializes MCP servers from configuration and registers their tools with safe permission defaults
    */
   static async initializeMcpServers(cwd: string, toolRegistry: ToolRegistry): Promise<string[]> {
     const configPath = this.findConfigFile(cwd);
@@ -60,13 +110,7 @@ export class McpClientManager {
         if (serverCfg.disabled) continue;
 
         try {
-          const cleanEnv: Record<string, string> = {};
-          for (const [k, v] of Object.entries(process.env)) {
-            if (v !== undefined) cleanEnv[k] = v;
-          }
-          if (serverCfg.env) {
-            Object.assign(cleanEnv, serverCfg.env);
-          }
+          const cleanEnv = this.buildSafeMcpEnv(serverCfg.env);
 
           const transport = new StdioClientTransport({
             command: serverCfg.command,
@@ -81,7 +125,7 @@ export class McpClientManager {
             },
             {
               capabilities: {},
-            }
+            },
           );
 
           await client.connect(transport);
@@ -94,14 +138,21 @@ export class McpClientManager {
             const toolName = `mcp_${serverName}_${mcpTool.name}`;
             this.registeredTools.set(toolName, serverName);
 
-            // Adapt MCP tool into InterShader ToolDefinition
+            const annotations = (mcpTool as { annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean } })
+              .annotations;
+            const isReadOnly = annotations?.readOnlyHint === true;
+            const isDestructive = annotations?.destructiveHint ?? !isReadOnly;
+            // Fail-safe permission default (SVC-MCP-01 / F-06): third-party MCP tools require permission
+            // unless explicitly marked read-only AND server is marked trusted.
+            const requiresPermission = !(isReadOnly && serverCfg.trusted === true);
+
             const adaptedTool: ToolDefinition<any, any> = {
               name: toolName,
               description: `[MCP: ${serverName}] ${mcpTool.description || 'External MCP tool'}`,
               inputSchema: z.record(z.any()),
-              isReadOnly: false,
-              isDestructive: false,
-              requiresPermission: false,
+              isReadOnly,
+              isDestructive,
+              requiresPermission,
               execute: async (args: Record<string, unknown>, _context: ToolExecutionContext) => {
                 try {
                   const result = await client.callTool({
@@ -125,12 +176,12 @@ export class McpClientManager {
             toolRegistry.register(adaptedTool);
             loadedTools.push(toolName);
           }
-        } catch (err) {
-          // Log or silently skip unavailable MCP servers
+        } catch {
+          // Skip unavailable MCP servers without crashing session startup
         }
       }
     } catch {
-      // ignore invalid config
+      // Ignore invalid MCP config JSON
     }
 
     return loadedTools;
@@ -151,7 +202,7 @@ export class McpClientManager {
       try {
         await client.close();
       } catch {
-        // ignore disconnect errors
+        // Ignore disconnect errors on shutdown
       }
     }
     this.activeClients.clear();

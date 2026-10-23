@@ -1,70 +1,40 @@
 import path from 'path';
 import fs from 'fs';
-import { randomUUID } from 'crypto';
-import { getDatabase } from '../../state/Database.js';
+import {
+  FtsMemoryService,
+  type MemoryEntry,
+  type FtsSearchOptions,
+  type FtsSearchResult,
+} from './FtsMemoryService.js';
 
-export interface MemoryEntry {
-  id: string;
-  sessionId?: string;
-  projectId: string;
-  type: 'decision' | 'lesson' | 'architecture' | 'bug_pattern';
-  title: string;
-  content: string;
-  createdAt: number;
-}
+export type { MemoryEntry, FtsSearchOptions, FtsSearchResult };
 
+/**
+ * Unified MemoryService facade delegating storage, retrieval, and BM25 FTS5 search
+ * to FtsMemoryService (SVC-MEM-01).
+ */
 export class MemoryService {
-  /**
-   * Save a durable memory record to SQLite WAL database
-   */
   static recordMemory(entry: Omit<MemoryEntry, 'id' | 'createdAt'>): MemoryEntry {
-    const db = getDatabase();
-    const id = randomUUID();
-    const createdAt = Date.now();
-
-    const stmt = db.prepare(`
-      INSERT INTO memories (id, session_id, project_id, type, title, content, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    stmt.run(
-      id,
-      entry.sessionId || null,
-      entry.projectId,
-      entry.type,
-      entry.title,
-      entry.content,
-      createdAt
-    );
-
-    return {
-      id,
-      ...entry,
-      createdAt,
-    };
+    return FtsMemoryService.recordMemory(entry);
   }
 
-  /**
-   * Retrieve memories for a specific project
-   */
   static getMemoriesForProject(projectId: string): MemoryEntry[] {
-    const db = getDatabase();
-    const stmt = db.prepare(`
-      SELECT id, session_id as sessionId, project_id as projectId, type, title, content, created_at as createdAt
-      FROM memories
-      WHERE project_id = ?
-      ORDER BY created_at ASC
-    `);
+    return FtsMemoryService.getMemoriesForProject(projectId);
+  }
 
-    return stmt.all(projectId) as MemoryEntry[];
+  static searchMemories(query: string, options: FtsSearchOptions = {}): FtsSearchResult[] {
+    return FtsMemoryService.searchMemories(query, options);
   }
 
   /**
    * Formats project memories into a concise Markdown section for LLM context injection
    */
-  static formatMemoriesForContext(projectId: string): string {
-    const entries = this.getMemoriesForProject(projectId);
-    if (entries.length === 0) {
+  static formatMemoriesForContext(projectId: string, currentGoal?: string): string {
+    const entries = currentGoal
+      ? FtsMemoryService.searchMemories(currentGoal, { projectId, limit: 5 })
+      : this.getMemoriesForProject(projectId);
+    const resolvedEntries = entries.length > 0 ? entries : this.getMemoriesForProject(projectId);
+    if (resolvedEntries.length === 0) {
       return '';
     }
 
@@ -73,7 +43,7 @@ export class MemoryService {
       'The following guidelines and lessons were recorded from previous tasks in this codebase:',
     ];
 
-    for (const mem of entries) {
+    for (const mem of resolvedEntries) {
       lines.push(`- [${mem.type.toUpperCase()}] ${mem.title}: ${mem.content}`);
     }
 

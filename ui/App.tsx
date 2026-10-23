@@ -17,10 +17,9 @@ import { ReturnToBottomBar } from './components/ReturnToBottomBar.js';
 import { SwarmDashboardView } from './components/SwarmDashboardView.js';
 import { SwarmCoordinator } from '../engine/swarm/SwarmCoordinator.js';
 import type { SwarmTask, SwarmProgressEvent, SwarmRole } from '../engine/swarm/SwarmTypes.js';
-import { TerminalMouseManager } from './services/TerminalMouseManager.js';
 import { extractPromptTurns, truncatePromptText } from './utils/turnExtractor.js';
 import { PlanManager } from '../state/PlanManager.js';
-import { TaskManager, taskEvents } from '../state/TaskManager.js';
+import { TaskManager } from '../state/TaskManager.js';
 import { SessionStore } from '../state/SessionStore.js';
 import type { TaskItem } from '../tasks/TaskGraph.js';
 import type { QueryEngine } from '../orchestrator/QueryEngine.js';
@@ -29,6 +28,10 @@ import type { UnifiedMessage, PermissionRequest, UserQuestionRequest } from '../
 import { i18n, t } from '../services/i18n/index.js';
 import { SUPPORTED_LOCALES } from '../services/i18n/types.js';
 import { CommandRegistry, registerBuiltinCommands } from '../cli/commands/index.js';
+import { useTerminalViewport } from './hooks/useTerminalViewport.js';
+import { useMultiSessionTabs } from './hooks/useMultiSessionTabs.js';
+import { useQueryEngineBridge } from './hooks/useQueryEngineBridge.js';
+import { formatSlashCommandHelp, formatResumeSessionList } from './services/slashCommandHelp.js';
 
 const commandRegistry = new CommandRegistry();
 registerBuiltinCommands(commandRegistry);
@@ -52,91 +55,27 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
   const [sessionTasks, setSessionTasks] = useState<TaskItem[]>(() =>
     TaskManager.listTasks(queryEngine.getSessionState().id)
   );
-  const [sessionTabs, setSessionTabs] = useState<SessionTab[]>(() => {
-    const pool = MultiSessionPool.getInstance();
-    pool.initPrimary(queryEngine);
-    return pool.getTabs();
-  });
-  const [activeTabId, setActiveTabId] = useState<string>(() => {
-    return MultiSessionPool.getInstance().getActiveTab().id;
-  });
-
-  const activeTab = useMemo(() => {
-    const pool = MultiSessionPool.getInstance();
-    return pool.getTabs().find((t) => t.id === activeTabId) || pool.getTabs()[0];
-  }, [activeTabId, sessionTabs]);
-
-  const activeEngine = activeTab ? activeTab.queryEngine : queryEngine;
-
-  useEffect(() => {
-    const pool = MultiSessionPool.getInstance();
-    const handleTabSwitched = (tab: SessionTab) => {
-      setActiveTabId(tab.id);
-      setSessionTabs([...pool.getTabs()]);
-      setMessages([...tab.queryEngine.getMessages()]);
-      setSessionState({ ...tab.queryEngine.getSessionState() });
-      setContextTokens(tab.queryEngine.getContextTokens());
-      setIsBusy(tab.status === 'running');
-      setSessionTasks(TaskManager.listTasks(tab.queryEngine.getSessionState().id));
-      setViewingTurnIndex(null);
-    };
-
-    const handleTabsChanged = () => {
-      setSessionTabs([...pool.getTabs()]);
-    };
-
-    pool.on('tab_switched', handleTabSwitched);
-    pool.on('tab_created', handleTabsChanged);
-    pool.on('tab_updated', handleTabsChanged);
-    pool.on('tab_progress', handleTabsChanged);
-    pool.on('tab_closed', handleTabsChanged);
-
-    return () => {
-      pool.off('tab_switched', handleTabSwitched);
-      pool.off('tab_created', handleTabsChanged);
-      pool.off('tab_updated', handleTabsChanged);
-      pool.off('tab_progress', handleTabsChanged);
-      pool.off('tab_closed', handleTabsChanged);
-    };
-  }, []);
-
   const [viewingTurnIndex, setViewingTurnIndex] = useState<number | null>(null);
   const [swarmTasks, setSwarmTasks] = useState<SwarmTask[]>([]);
   const [swarmStatus, setSwarmStatus] = useState<SwarmProgressEvent['overallStatus'] | null>(null);
 
-  useEffect(() => {
-    const mouseMgr = TerminalMouseManager.getInstance();
-    mouseMgr.enable();
-    return () => {
-      mouseMgr.disable();
-    };
+  const handleTabSwitched = useCallback((tab: SessionTab) => {
+    setMessages([...tab.queryEngine.getMessages()]);
+    setSessionState({ ...tab.queryEngine.getSessionState() });
+    setContextTokens(tab.queryEngine.getContextTokens());
+    setIsBusy(tab.status === 'running');
+    setSessionTasks(TaskManager.listTasks(tab.queryEngine.getSessionState().id));
+    setViewingTurnIndex(null);
   }, []);
 
-  const [terminalDimensions, setTerminalDimensions] = useState(() => ({
-    rows: process.stdout.rows || 24,
-    columns: process.stdout.columns || 80,
-  }));
-
-  useEffect(() => {
-    const handleResize = () => {
-      setTerminalDimensions({
-        rows: process.stdout.rows || 24,
-        columns: process.stdout.columns || 80,
-      });
-    };
-    process.stdout.on('resize', handleResize);
-    return () => {
-      process.stdout.off('resize', handleResize);
-    };
-  }, []);
-
-  const isCompact = isBusy || terminalDimensions.rows < 25;
+  const { sessionTabs, activeTabId, activeEngine } = useMultiSessionTabs(queryEngine, handleTabSwitched);
+  const { columns: terminalColumns, isCompact } = useTerminalViewport(isBusy);
 
   const promptTurns = useMemo(() => extractPromptTurns(messages), [messages]);
 
   const selectedTurn = useMemo(() => {
     if (viewingTurnIndex === null) return null;
-    return promptTurns.find((t) => t.turnIndex === viewingTurnIndex) || null;
+    return promptTurns.find((turn) => turn.turnIndex === viewingTurnIndex) || null;
   }, [promptTurns, viewingTurnIndex]);
 
   const handleSelectTurn = useCallback((turnIndex: number) => {
@@ -147,7 +86,6 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
     setViewingTurnIndex(null);
   }, []);
 
-
   const isBusyRef = useRef(isBusy);
   isBusyRef.current = isBusy;
   const queuedPromptRef = useRef<string | null>(null);
@@ -157,14 +95,13 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
   const handleAbort = useCallback(() => {
     const now = Date.now();
     if (now - lastAbortTimeRef.current < 250) {
-      return; // Debounce rapid multi-source triggers
+      return;
     }
     lastAbortTimeRef.current = now;
 
     const isRunning = isBusyRef.current || activeEngine.getIsRunning();
 
     if (isRunning) {
-      // Abort in-flight agent task while preserving the InterShader session
       if (queuedPromptRef.current) {
         queuedPromptRef.current = null;
         setQueuedPrompt(null);
@@ -188,19 +125,16 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
       setMessages([...activeEngine.getMessages()]);
       setContextTokens(activeEngine.getContextTokens());
     } else {
-      // Agent is idle: Exit the InterShader CLI session cleanly
       exit();
     }
-  }, [activeEngine, exit, pendingPermission]);
+  }, [activeEngine, exit, pendingPermission, pendingQuestion]);
 
-  // Global key interception: Ctrl+C (abort/exit) & Alt+1..9 (rewind to turn)
   useInput((input, key) => {
     if (key.ctrl && (input === 'c' || input === 'C')) {
       handleAbort();
       return;
     }
 
-    // Alt + 1..9 switches active session tab when multiple tabs exist, or jumps to turn
     if (key.meta && /^[1-9]$/.test(input)) {
       const targetIndex = parseInt(input, 10);
       const pool = MultiSessionPool.getInstance();
@@ -214,8 +148,6 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
     }
   });
 
-
-  // Global process-level SIGINT listener (handles OS signals, terminal break events)
   useEffect(() => {
     const onSigInt = () => {
       handleAbort();
@@ -225,7 +157,6 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
       process.off('SIGINT', onSigInt);
     };
   }, [handleAbort]);
-
 
   const handleClearQueue = useCallback(() => {
     queuedPromptRef.current = null;
@@ -269,187 +200,23 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
     }
   }, [initialPrompt]);
 
-  useEffect(() => {
-    // 35ms UI render throttler (~28 FPS) to prevent terminal cursor stutter and 100% CPU on high-frequency stream chunks
-    let lastRenderTime = 0;
-    let pendingProgressText: string | null = null;
-    let throttleTimer: NodeJS.Timeout | null = null;
-
-    const flushProgress = () => {
-      if (pendingProgressText !== null) {
-        setProgressText(pendingProgressText);
-      }
-      setContextTokens(activeEngine.getContextTokens());
-      lastRenderTime = Date.now();
-      throttleTimer = null;
-    };
-
-    const scheduleProgressUpdate = (cleanText?: string) => {
-      if (cleanText !== undefined) {
-        pendingProgressText = cleanText;
-      }
-      const now = Date.now();
-      const elapsed = now - lastRenderTime;
-      if (elapsed >= 35) {
-        if (throttleTimer) {
-          clearTimeout(throttleTimer);
-          throttleTimer = null;
-        }
-        flushProgress();
-      } else if (!throttleTimer) {
-        throttleTimer = setTimeout(flushProgress, 35 - elapsed);
-      }
-    };
-
-    // Listen to activeEngine events
-    const handleText = (delta?: string) => {
-      if (delta) {
-        const clean = delta.replace(/\r/g, '').replace(/\s+/g, ' ').trim();
-        if (clean) {
-          scheduleProgressUpdate(clean.length > 70 ? `${clean.slice(-67)}...` : clean);
-          return;
-        }
-      }
-      scheduleProgressUpdate();
-    };
-
-    const handleThought = (delta?: string) => {
-      if (delta) {
-        const clean = delta.replace(/\r/g, '').replace(/\s+/g, ' ').trim();
-        if (clean) {
-          scheduleProgressUpdate(clean.length > 70 ? `${clean.slice(0, 67)}...` : clean);
-        }
-      }
-    };
-
-    const handleToolStart = (name: string) => {
-      if (throttleTimer) {
-        clearTimeout(throttleTimer);
-        throttleTimer = null;
-      }
-      setCurrentToolName(name);
-      setProgressText(null);
-      setMessages([...activeEngine.getMessages()]);
-      setContextTokens(activeEngine.getContextTokens());
-    };
-
-    const handleToolProgress = (progress: string) => {
-      scheduleProgressUpdate(progress);
-    };
-
-    const handleToolDone = () => {
-      if (throttleTimer) {
-        clearTimeout(throttleTimer);
-        throttleTimer = null;
-      }
-      setCurrentToolName(null);
-      setProgressText(null);
-      setMessages([...activeEngine.getMessages()]);
-      setContextTokens(activeEngine.getContextTokens());
-    };
-
-    const handleUsage = () => {
-      setSessionState({ ...activeEngine.getSessionState() });
-      setContextTokens(activeEngine.getContextTokens());
-    };
-
-    const handleDone = () => {
-      if (throttleTimer) {
-        clearTimeout(throttleTimer);
-        throttleTimer = null;
-      }
-      setIsBusy(false);
-      isBusyRef.current = false;
-      setCurrentToolName(null);
-      setProgressText(null);
-      setPendingPermission(null);
-      setMessages([...activeEngine.getMessages()]);
-      setSessionState({ ...activeEngine.getSessionState() });
-      setContextTokens(activeEngine.getContextTokens());
-
-      // Clean up completed tasks from database so they do not persist into future prompts
-      const currentSessionId = activeEngine.getSessionState().id;
-      TaskManager.clearCompletedTasks(currentSessionId);
-      const remainingTasks = TaskManager.listTasks(currentSessionId);
-      setSessionTasks(remainingTasks);
-
-      if (queuedPromptRef.current) {
-        const next = queuedPromptRef.current;
-        queuedPromptRef.current = null;
-        setQueuedPrompt(null);
-        setTimeout(() => {
-          handleUserSubmitRef.current(next);
-        }, 100);
-      }
-    };
-
-    const handlePermissionRequest = (req: PermissionRequest) => {
-      setPendingPermission(req);
-    };
-
-    const handleSessionReset = (newSession: any) => {
-      setSessionState({ ...newSession });
-      setSessionTasks([]);
-      setMessages([...activeEngine.getMessages()]);
-      setContextTokens(activeEngine.getContextTokens());
-    };
-
-    const handleUserMessage = () => {
-      setMessages([...activeEngine.getMessages()]);
-      setContextTokens(activeEngine.getContextTokens());
-    };
-
-    const handleSyntheticMessage = () => {
-      setMessages([...activeEngine.getMessages()]);
-      setContextTokens(activeEngine.getContextTokens());
-    };
-
-    const handleAskQuestion = (req: UserQuestionRequest) => {
-      setPendingQuestion(req);
-    };
-
-    activeEngine.on('text', handleText);
-    activeEngine.on('thought', handleThought);
-    activeEngine.on('user_message', handleUserMessage);
-    activeEngine.on('message', handleSyntheticMessage);
-    activeEngine.on('tool_start', handleToolStart);
-    activeEngine.on('tool_progress', handleToolProgress);
-    activeEngine.on('tool_done', handleToolDone);
-    activeEngine.on('usage', handleUsage);
-    activeEngine.on('done', handleDone);
-    activeEngine.on('error', handleError);
-    activeEngine.on('permission_request', handlePermissionRequest);
-    activeEngine.on('session_reset', handleSessionReset);
-    activeEngine.on('ask_question', handleAskQuestion);
-
-    const handleTaskChange = (changedSessionId: string) => {
-      const currentSessionId = activeEngine.getSessionState().id;
-      if (changedSessionId === currentSessionId) {
-        setSessionTasks(TaskManager.listTasks(changedSessionId));
-      }
-    };
-    taskEvents.on('change', handleTaskChange);
-
-    return () => {
-      if (throttleTimer) {
-        clearTimeout(throttleTimer);
-      }
-      activeEngine.off('text', handleText);
-      activeEngine.off('thought', handleThought);
-      activeEngine.off('user_message', handleUserMessage);
-      activeEngine.off('message', handleSyntheticMessage);
-      activeEngine.off('tool_start', handleToolStart);
-      activeEngine.off('tool_progress', handleToolProgress);
-      activeEngine.off('tool_done', handleToolDone);
-      activeEngine.off('usage', handleUsage);
-      activeEngine.off('done', handleDone);
-      activeEngine.off('error', handleError);
-      activeEngine.off('permission_request', handlePermissionRequest);
-      activeEngine.off('session_reset', handleSessionReset);
-      activeEngine.off('ask_question', handleAskQuestion);
-      taskEvents.off('change', handleTaskChange);
-    };
-  }, [activeEngine, handleError]);
+  useQueryEngineBridge({
+    activeEngine,
+    isBusyRef,
+    queuedPromptRef,
+    handleUserSubmitRef,
+    handleError,
+    setIsBusy,
+    setQueuedPrompt,
+    setCurrentToolName,
+    setProgressText,
+    setPendingPermission,
+    setPendingQuestion,
+    setMessages,
+    setSessionState,
+    setContextTokens,
+    setSessionTasks,
+  });
 
   const handleUserSubmit = async (prompt: string) => {
     // 1. Exit / Quit (Emergency terminate)
@@ -533,7 +300,6 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
       setProgressText(null);
       setPendingPermission(null);
 
-      // Clean terminal screen and scrollback for the fresh conversation
       process.stdout.write('\x1b[2J\x1b[H\x1b[3J');
 
       const notice = isDeleteRequested
@@ -567,23 +333,11 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
       const targetArg = parts[1];
 
       if (!targetArg) {
-        // List recent sessions for user to choose from
         const sessions = SessionStore.listSessions(6);
-        const lines: string[] = ['Conversations available to resume:'];
-        for (const s of sessions) {
-          const isCurrent = s.id === sessionState.id ? ' [CURRENT]' : '';
-          const timeStr = new Date(s.updatedAt).toLocaleString();
-          const totalTokens = s.totalInputTokens + s.totalOutputTokens;
-          lines.push(`- [${s.id.slice(0, 8)}] ${s.title} | ${s.model} | ${totalTokens.toLocaleString()} tokens | $${s.totalCostUsd.toFixed(4)} USD${isCurrent}`);
-          lines.push(`  ID: ${s.id} (${timeStr})`);
-        }
-        lines.push('');
-        lines.push('Usage: /resume <id> (or first 8 chars) | /resume latest');
-
         const infoMsg: UnifiedMessage = {
           id: randomUUID(),
           role: 'assistant',
-          content: lines.join('\n'),
+          content: formatResumeSessionList(sessions, sessionState.id),
           timestamp: Date.now() + 1,
         };
         activeEngine.appendSyntheticMessage(infoMsg);
@@ -606,8 +360,7 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
 
       const resumed = res.session;
       TaskManager.clearAllTasks(sessionState.id);
-      const restoredTasks = TaskManager.listTasks(resumed.id);
-      setSessionTasks(restoredTasks);
+      setSessionTasks(TaskManager.listTasks(resumed.id));
 
       setSessionState({ ...resumed });
       setMessages([...activeEngine.getMessages()]);
@@ -616,7 +369,6 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
       setProgressText(null);
       setPendingPermission(null);
 
-      // Clean terminal screen and scrollback for the resumed conversation
       process.stdout.write('\x1b[2J\x1b[H\x1b[3J');
 
       const totalTokens = resumed.totalInputTokens + resumed.totalOutputTokens;
@@ -759,12 +511,9 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
         return;
       }
 
-      // When targetPath is provided (e.g. "plan tự build model AI..." or "/plan design auth"):
-      // 1. Enable Plan Mode (Safe Read-Only architectural mode)
       activeEngine.setPermissionMode('plan');
       setSessionState((prev) => ({ ...prev, permissionMode: 'plan' }));
 
-      // 2. If agent is currently busy, queue the prompt
       if (isBusyRef.current) {
         const trimmed = prompt.trim();
         if (trimmed) {
@@ -774,7 +523,6 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
         return;
       }
 
-      // 3. Formulate planning instruction and execute with AI model (never freeze!)
       const activePlan = PlanManager.getActivePlan(sessionState.id);
       const planContext = activePlan
         ? `Note: An existing plan "${activePlan.title}" exists. Formulate a comprehensive plan for the new objective.\n`
@@ -810,7 +558,6 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
     if (parsedCmd) {
       const cmd = commandRegistry.get(parsedCmd.commandName);
       if (cmd) {
-        // A. LOCAL COMMAND: ALWAYS EXECUTE IMMEDIATELY, REGARDLESS OF isBusy (e.g. /tab new, /tab switch, /status, /help)
         if (cmd.type === 'local') {
           const userCmdMsg: UnifiedMessage = {
             id: randomUUID(),
@@ -835,7 +582,6 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
 
           const res = await cmd.execute(cmdCtx);
 
-          // Get active tab's query engine in case the command switched tabs (e.g. /tab new or /tab switch)
           const updatedTab = pool.getActiveTab();
           const finalEngine = updatedTab ? updatedTab.queryEngine : activeEngine;
 
@@ -848,7 +594,6 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
           finalEngine.appendSyntheticMessage(localMsg);
           setMessages([...finalEngine.getMessages()]);
 
-          // Synchronize sessionState and targetEngine with model/provider/maxTurns/permissionMode changes
           const updatedState = { ...sessionState, ...(cmdCtx.sessionState as unknown as typeof sessionState) };
           if ((cmdCtx.sessionState as Record<string, unknown>).maxTurns !== undefined) {
             const newMaxTurns = (cmdCtx.sessionState as Record<string, unknown>).maxTurns as number;
@@ -873,7 +618,6 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
           return;
         }
 
-        // B. PROMPT COMMAND: If agent is busy, queue prompt; otherwise execute immediately
         if (cmd.type === 'prompt') {
           if (isBusyRef.current) {
             const trimmed = prompt.trim();
@@ -931,8 +675,8 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
           : [
               'Session Prompt History:',
               ...promptTurns.map(
-                (t) =>
-                  `  Turn #${t.turnIndex}: "${truncatePromptText(t.promptText, 50)}" (Alt+${t.turnIndex} or /turn ${t.turnIndex})`
+                (turn) =>
+                  `  Turn #${turn.turnIndex}: "${truncatePromptText(turn.promptText, 50)}" (Alt+${turn.turnIndex} or /turn ${turn.turnIndex})`
               ),
               '',
               'Use /turn <number> or Alt+1..9 to inspect any past turn, /return to return to bottom.',
@@ -962,37 +706,10 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
       };
       activeEngine.appendSyntheticMessage(userCmdMsg);
 
-      const allCommands = commandRegistry.list();
-      const codeQualityNames = ['doctor', 'review', 'commit', 'diff', 'rewind', 'init', 'export'];
-      const intelligenceNames = ['model', 'mode', 'turns', 'compact', 'status', 'stats', 'cost', 'memory', 'skills', 'worktree', 'gateway', 'sessions', 'tab', 'maxing'];
-
-      const codeQualityCmds = allCommands.filter((c) => codeQualityNames.includes(c.name));
-      const intelligenceCmds = allCommands.filter((c) => intelligenceNames.includes(c.name));
-
       const helpMsg: UnifiedMessage = {
         id: randomUUID(),
         role: 'assistant',
-        content: [
-          'InterShader Slash Commands',
-          '',
-          '[System & Session Controls]',
-          '  /tab new <title> - Create secondary session in isolated Git worktree',
-          '  /tab switch <n>  - Switch active viewport to tab',
-          '  /plan [view|rst] - Toggle Plan Mode, inspect active plan, or reset',
-          '  /history         - View prompt history turns and shortcuts',
-          '  /turn <id>       - Inspect historical prompt turn in rewind viewport',
-          '  /return          - Return to latest bottom prompt input',
-          '  /lang <id>       - Switch UI language (en, vi, ja, zh, es, fr, de, ko, ru)',
-          '  /unqueue         - Delete/clear currently queued prompt',
-          '  /clear           - Clear chat screen',
-          '  /exit, /quit     - Exit terminal',
-          '',
-          '[Code Quality & Versioning]',
-          ...codeQualityCmds.map((c) => `  /${c.name.padEnd(12)} - ${c.description}`),
-          '',
-          '[Intelligence & Multi-Session Sandboxing]',
-          ...intelligenceCmds.map((c) => `  /${c.name.padEnd(12)} - ${c.description}`),
-        ].join('\n'),
+        content: formatSlashCommandHelp(commandRegistry),
         timestamp: Date.now() + 1,
       };
       activeEngine.appendSyntheticMessage(helpMsg);
@@ -1001,7 +718,6 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
     }
 
     // 9. Standard User Prompt (AI Execution)
-    // If agent is currently busy processing, enqueue the prompt
     if (isBusyRef.current) {
       const trimmed = prompt.trim();
       if (trimmed) {
@@ -1081,7 +797,6 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
 
   const totalTokens = sessionState.totalInputTokens + sessionState.totalOutputTokens;
 
-  // Filter out system messages from display
   const visibleMessages = useMemo(
     () => messages.filter((m) => m.role !== 'system'),
     [messages]
@@ -1097,16 +812,13 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
         turnIndex?: number;
       };
 
-  // All conversation messages in visibleMessages are completed turns.
-  // Rendering them directly via <Static> guarantees they are printed once in full to stdout,
-  // scroll naturally without truncation, and never overflow the dynamic terminal area.
   const staticItems: StaticItem[] = useMemo(() => {
     const items: StaticItem[] = [{ type: 'header', id: 'session-header' }];
     let userTurnCounter = 0;
     for (const msg of visibleMessages) {
       if (msg.role === 'user') {
         userTurnCounter++;
-        const prevTurn = promptTurns.find((t) => t.turnIndex === userTurnCounter - 1);
+        const prevTurn = promptTurns.find((turn) => turn.turnIndex === userTurnCounter - 1);
         items.push({
           type: 'message',
           id: msg.id,
@@ -1122,8 +834,7 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
   }, [visibleMessages, promptTurns]);
 
   return (
-    <Box flexDirection="column" paddingX={1} width={terminalDimensions.columns}>
-      {/* Completed messages and header rendered once permanently via Static */}
+    <Box flexDirection="column" paddingX={1} width={terminalColumns}>
       <Static items={staticItems}>
         {(item: StaticItem) => {
           if (item.type === 'header') {
@@ -1191,7 +902,7 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
             totalCostUsd={sessionState.totalCostUsd}
             isBusy={isBusy}
             isCompact={isCompact}
-            columns={terminalDimensions.columns}
+            columns={terminalColumns}
             maxTurns={sessionState.maxTurns !== undefined ? sessionState.maxTurns : activeEngine.getMaxTurns()}
             maxingMode={Boolean(sessionState.maxingMode ?? activeEngine.getSessionState().maxingMode)}
           />
@@ -1241,6 +952,5 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
         </>
       )}
     </Box>
-
   );
 };

@@ -1,0 +1,18 @@
+{
+  "aliases": {
+    "gemini-flash": "gemini-2.5-flash",
+    "flash": "gemini-2.5-flash",
+    "gemini-pro": "gemini-2.5-pro",
+    "pro": "gemini-2.5-pro",
+    "sonnet": "claude-3-7-sonnet-20250219",
+    "claude-sonnet": "claude-3-7-sonnet-20250219",
+    "haiku": "claude-3-5-haiku-20241022",
+    "claude-3-5-haiku": "claude-3-5-haiku-20241022",
+    "4o": "gpt-4o",
+    "4o-mini": "gpt-4o-mini",
+    "deepseek": "deepseek-chat",
+    "deepseek-v3": "deepseek-chat",
+    "deepseek-r1": "deepseek-reasoner",
+    "r1": "deepseek-reasoner"
+  }
+}

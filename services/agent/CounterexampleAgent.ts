@@ -361,9 +361,9 @@ export class CounterexampleAgent {
       : 'IMPERVIOUS_VERIFIED';
 
     const summary = attackSucceeded
-      ? `Counterexample Agent confirmed ${reproducedFailuresCount} reproduced failure(s). Empirical penetration demonstrated; repair required.`
+      ? `Counterexample Agent probed ${this.TOTAL_VECTORS} adversarial vectors and confirmed ${reproducedFailuresCount} reproduced failure(s). Empirical penetration demonstrated; repair required.`
       : possibleIssuesCount > 0
-      ? `Counterexample Agent identified ${possibleIssuesCount} possible issue(s), but 0 reproduced failures. Classified as warnings.`
+      ? `Counterexample Agent probed ${this.TOTAL_VECTORS} adversarial vectors and identified ${possibleIssuesCount} possible issue(s), but 0 reproduced failures. Classified as warnings.`
       : `Counterexample Agent probed ${this.TOTAL_VECTORS} adversarial vectors. Zero vulnerabilities discovered.`;
 
     return {

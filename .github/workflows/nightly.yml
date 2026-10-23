@@ -1,0 +1,46 @@
+name: nightly
+
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  full-suite:
+    name: full test suite (${{ matrix.os }}, node ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: |
+          git config --global user.email "ci@intershader.local"
+          git config --global user.name "InterShader CI"
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run i18n:check
+      - run: npm run build
+      - name: Full tests (tier1 + tier2)
+        run: npm run test:all
+        env:
+          CI: "true"
+          INTERSHADER_TEST_MODE: "mock"
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-${{ matrix.os }}-${{ matrix.node }}-${{ github.run_id }}
+          path: |
+            test-results/
+          retention-days: 30

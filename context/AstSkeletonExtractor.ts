@@ -198,9 +198,32 @@ export class AstSkeletonExtractor {
       );
     }
 
-    // Variable statement (e.g. export const foo = ...) -> Keep signature/export
+    // Variable statement (e.g. export const foo = ...) -> Strip arrow function / large object bodies (CTX-01)
     if (ts.isVariableStatement(node)) {
-      return node;
+      const updatedDeclarations = node.declarationList.declarations.map((decl) => {
+        if (!decl.initializer) return decl;
+        if (ts.isArrowFunction(decl.initializer) || ts.isFunctionExpression(decl.initializer)) {
+          const fn = decl.initializer;
+          const strippedArrow = ts.factory.createArrowFunction(
+            fn.modifiers,
+            fn.typeParameters,
+            fn.parameters,
+            fn.type,
+            ts.factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
+            ts.factory.createBlock(
+              [ts.factory.createExpressionStatement(ts.factory.createIdentifier('/* ... */'))],
+              false
+            )
+          );
+          return ts.factory.updateVariableDeclaration(decl, decl.name, decl.exclamationToken, decl.type, strippedArrow);
+        }
+        return decl;
+      });
+      return ts.factory.updateVariableStatement(
+        node,
+        node.modifiers,
+        ts.factory.updateVariableDeclarationList(node.declarationList, updatedDeclarations)
+      );
     }
 
     // Export declarations (e.g. export { a, b })

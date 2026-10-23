@@ -1,7 +1,6 @@
 import { AgentJudge, type JudgeSubmission, type JudgeEvaluationReport } from '../../services/agent/AgentJudge.js';
-import { ProofEngine, type ProofReport } from '../verification/ProofEngine.js';
+import { type ProofReport } from '../verification/ProofEngine.js';
 import { CounterexampleAgent, type CounterexampleReport } from '../../services/agent/CounterexampleAgent.js';
-import type { ModelProfile } from './CapabilityModelRegistry.js';
 
 export interface CandidatePatch {
   modelId: string;
@@ -10,6 +9,8 @@ export interface CandidatePatch {
   patchDescription: string;
   modifiedFiles: string[];
   diffContent?: string;
+  testResults?: { total: number; passed: number; failed: number };
+  /** @deprecated Use testResults backed by actual test runner output. */
   simulatedTestResults?: { total: number; passed: number; failed: number };
   buildPassed?: boolean;
 }
@@ -37,15 +38,15 @@ export interface TournamentReport {
 
 export class ModelTournament {
   /**
-   * Run competitive empirical tournament across candidate patches.
-   * "Select the patch backed by the strongest evidence, regardless of model prestige."
+   * Runs competitive empirical tournament across candidate patches.
+   * Candidates missing empirical test results are strictly disqualified (ENG-001: NO EVIDENCE, NO DONE).
    */
   static evaluateTournament(
     taskId: string,
     taskTitle: string,
     candidates: CandidatePatch[],
     cwd: string,
-    allowedFiles: string[] = []
+    allowedFiles: string[] = [],
   ): TournamentReport {
     if (candidates.length === 0) {
       throw new Error('Tournament requires at least one candidate patch.');
@@ -62,13 +63,21 @@ export class ModelTournament {
         diffSnippet: cand.diffContent,
       });
 
-      // 2. Prepare Judge Submission
+      const resolvedTestResults = cand.testResults ?? cand.simulatedTestResults;
+      const hasValidTestEvidence =
+        resolvedTestResults !== undefined &&
+        typeof resolvedTestResults.total === 'number' &&
+        resolvedTestResults.total > 0;
+
+      // 2. Prepare Judge Submission (never fabricate 10/10 pass when test results are missing)
       const submission: JudgeSubmission = {
         userIntent: taskTitle,
         modifiedFiles: cand.modifiedFiles,
         allowedFiles: allowedFiles.length > 0 ? allowedFiles : cand.modifiedFiles,
-        testResults: cand.simulatedTestResults || { total: 10, passed: 10, failed: 0 },
-        buildPassed: cand.buildPassed !== false,
+        testResults: hasValidTestEvidence
+          ? resolvedTestResults!
+          : { total: 0, passed: 0, failed: 1 },
+        buildPassed: cand.buildPassed === true,
         secretLeaksDetected: 0,
         counterexampleBreachDetected: counterReport.attackSucceeded,
       };
@@ -76,10 +85,20 @@ export class ModelTournament {
       const judgeReport = AgentJudge.evaluate(submission);
 
       // 3. Composite Evidence Score
-      // Evidence Score combines Judge Score + Counterexample Score - File Sprawl Penalty
       let compositeScore = judgeReport.overallScore * 0.6 + counterReport.adversarialScore * 0.4;
-      if (!judgeReport.isAccepted) {
-        compositeScore = 0; // Hard constraint breach completely zeros the rank
+      let verdict: CandidateEvaluation['verdict'] = 'RUNNER_UP';
+      let disqualificationReason: string | undefined;
+
+      if (!hasValidTestEvidence) {
+        compositeScore = 0;
+        verdict = 'DISQUALIFIED';
+        disqualificationReason =
+          'EVIDENCE_MISSING: Candidate patch did not provide empirical test execution results.';
+      } else if (!judgeReport.isAccepted) {
+        compositeScore = 0;
+        verdict = 'DISQUALIFIED';
+        disqualificationReason =
+          judgeReport.criticalDefects.join('; ') || 'Hard constraints violated';
       }
 
       evaluations.push({
@@ -87,7 +106,8 @@ export class ModelTournament {
         counterexampleReport: counterReport,
         judgeReport,
         compositeEvidenceScore: Math.round(compositeScore),
-        verdict: 'RUNNER_UP',
+        verdict,
+        disqualificationReason,
       });
     }
 
@@ -96,24 +116,28 @@ export class ModelTournament {
 
     // Determine winner
     const top = evaluations[0];
-    if (top.compositeEvidenceScore > 0 && top.judgeReport.isAccepted) {
+    if (top.compositeEvidenceScore > 0 && top.judgeReport.isAccepted && top.verdict !== 'DISQUALIFIED') {
       top.verdict = 'WINNER';
     } else {
       top.verdict = 'DISQUALIFIED';
-      top.disqualificationReason = 'No candidate passed all non-negotiable Hard Constraints.';
+      if (!top.disqualificationReason) {
+        top.disqualificationReason = 'No candidate passed all non-negotiable Hard Constraints.';
+      }
     }
 
     for (let i = 1; i < evaluations.length; i++) {
-      if (evaluations[i].compositeEvidenceScore === 0) {
+      if (evaluations[i].compositeEvidenceScore === 0 && evaluations[i].verdict !== 'DISQUALIFIED') {
         evaluations[i].verdict = 'DISQUALIFIED';
-        evaluations[i].disqualificationReason = evaluations[i].judgeReport.criticalDefects.join('; ') || 'Hard constraints violated';
+        evaluations[i].disqualificationReason =
+          evaluations[i].judgeReport.criticalDefects.join('; ') || 'Hard constraints violated';
       }
     }
 
     const winner = evaluations[0];
-    const summary = winner.verdict === 'WINNER'
-      ? `Model Tournament completed. Winner: ${winner.candidate.modelName} (Score: ${winner.compositeEvidenceScore}/100) based on verified pass rate and zero adversarial breaches.`
-      : 'Model Tournament completed with zero verified winners. All candidate patches breached Hard Constraints.';
+    const summary =
+      winner.verdict === 'WINNER'
+        ? `Model Tournament completed. Winner: ${winner.candidate.modelName} (Score: ${winner.compositeEvidenceScore}/100) based on verified pass rate and zero adversarial breaches.`
+        : 'Model Tournament completed with zero verified winners. All candidate patches breached Hard Constraints or lacked test evidence.';
 
     return {
       taskId,

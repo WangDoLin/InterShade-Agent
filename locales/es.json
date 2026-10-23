@@ -17,6 +17,8 @@
   "header.lang": "Idioma",
 
   "prompt.placeholder": "Escriba su tarea o comando slash (/plan, /lang, /clear, /exit)...",
+  "prompt.busyPlaceholder": "Escriba el siguiente mensaje (Enter para encolar, Esc/Ctrl+C para abortar)...",
+  "prompt.queuedReplace": "Escriba para reemplazar el prompt en cola...",
   "prompt.submitting": "Procesando tarea...",
   "prompt.slashCommands": "Comandos disponibles: /plan, /lang <id>, /clear, /exit",
   "prompt.abortHint": "Presione Ctrl+C para abortar la ejecucion actual",
@@ -44,11 +46,21 @@
   "slash.planModeOn": "Modo Plan ACTIVADO (Modo seguro de solo lectura)",
   "slash.planModeOff": "Modo Plan DESACTIVADO (Modo de ejecucion completa)",
   "slash.clearDone": "Historial de mensajes limpiado",
+  "slash.newSession": "Nueva conversacion iniciada (Sesion #{0})",
+  "slash.deletedSession": "Conversacion (#{0}) eliminada y nueva sesion iniciada (Sesion #{1})",
   "slash.langChanged": "Idioma cambiado a: {0}",
   "slash.langInvalid": "Idioma invalido \"{0}\". Soportados: {1}",
   "slash.exit": "Saliendo de InterShader CLI.",
 
   "errors.fileNotFound": "Archivo \"{0}\" no encontrado.",
   "errors.commandFailed": "Comando fallo con codigo de salida {0}: {1}",
-  "errors.unknown": "Ocurrio un error inesperado: {0}"
+  "errors.unknown": "Ocurrio un error inesperado: {0}",
+
+  "promptHistory.title": "HISTORIAL DE PROMPTS",
+  "promptHistory.active": "Activo",
+  "promptHistory.turn": "Turno",
+  "promptHistory.returnToBottom": "▼ Volver al mas reciente [Esc / B / Enter]",
+  "promptHistory.inspectingTitle": "MODO INSPECCION: Turno #{0} - \"{1}\"",
+  "promptHistory.navHint": "[Alt+1..9] Ir al turno │ [Esc / B] Volver al final │ [↑/↓] Desplazar │ [Clic] Seleccionar",
+  "promptHistory.empty": "(Sin prompts anteriores)"
 }

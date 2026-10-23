@@ -17,6 +17,8 @@
   "header.lang": "言語",
 
   "prompt.placeholder": "コーディングタスクまたはコマンド (/plan, /lang, /clear, /exit) を入力...",
+  "prompt.busyPlaceholder": "次のメッセージを入力 (Enterでキュー追加、Esc/Ctrl+Cで中断)...",
+  "prompt.queuedReplace": "入力してキュー内のプロンプトを置換...",
   "prompt.submitting": "処理中...",
   "prompt.slashCommands": "利用可能なコマンド: /plan, /lang <id>, /clear, /exit",
   "prompt.abortHint": "Ctrl+C で中断",
@@ -44,11 +46,21 @@
   "slash.planModeOn": "計画モード有効 (安全な読み取り専用モード)",
   "slash.planModeOff": "計画モード無効 (通常実行モード)",
   "slash.clearDone": "セッションメッセージをクリアしました",
+  "slash.newSession": "新しい会話を開始しました (セッション #{0})",
+  "slash.deletedSession": "会話 (#{0}) を削除し、新しいセッションを開始しました (セッション #{1})",
   "slash.langChanged": "言語を切り替えました: {0}",
   "slash.langInvalid": "無効な言語 \"{0}\"。対応言語: {1}",
   "slash.exit": "InterShaderを終了します。",
 
   "errors.fileNotFound": "ファイル \"{0}\" が見つかりません。",
   "errors.commandFailed": "コマンド失敗 (コード {0}): {1}",
-  "errors.unknown": "予期せぬエラーが発生しました: {0}"
+  "errors.unknown": "予期せぬエラーが発生しました: {0}",
+
+  "promptHistory.title": "プロンプト履歴",
+  "promptHistory.active": "アクティブ",
+  "promptHistory.turn": "ターン",
+  "promptHistory.returnToBottom": "▼ 最新に戻る [Esc / B / Enter]",
+  "promptHistory.inspectingTitle": "検査モード: ターン #{0} - \"{1}\"",
+  "promptHistory.navHint": "[Alt+1..9] ターン移動 │ [Esc / B] 最新へ戻る │ [↑/↓] スクロール │ [Click] 選択",
+  "promptHistory.empty": "(過去のプロンプトはありません)"
 }

@@ -17,6 +17,8 @@
   "header.lang": "Langue",
 
   "prompt.placeholder": "Entrez votre tache ou commande slash (/plan, /lang, /clear, /exit)...",
+  "prompt.busyPlaceholder": "Entrez le message suivant (Entree pour mettre en file, Echap/Ctrl+C pour interrompre)...",
+  "prompt.queuedReplace": "Tapez pour remplacer le prompt en file...",
   "prompt.submitting": "Traitement de la tache...",
   "prompt.slashCommands": "Commandes disponibles: /plan, /lang <id>, /clear, /exit",
   "prompt.abortHint": "Appuyez sur Ctrl+C pour interrompre l'execution",
@@ -44,11 +46,21 @@
   "slash.planModeOn": "Mode Plan ACTIVE (Mode securise en lecture seule)",
   "slash.planModeOff": "Mode Plan DESACTIVE (Mode d'execution complet)",
   "slash.clearDone": "Historique des messages efface",
+  "slash.newSession": "Nouvelle conversation demarree (Session #{0})",
+  "slash.deletedSession": "Conversation (#{0}) supprimee et nouvelle session demarree (Session #{1})",
   "slash.langChanged": "Langue modifiee pour: {0}",
   "slash.langInvalid": "Langue invalide \"{0}\". Langues supportees: {1}",
   "slash.exit": "Fermeture d'InterShader CLI.",
 
   "errors.fileNotFound": "Fichier \"{0}\" introuvable.",
   "errors.commandFailed": "La commande a echoue avec le code {0}: {1}",
-  "errors.unknown": "Une erreur inattendue est survenue: {0}"
+  "errors.unknown": "Une erreur inattendue est survenue: {0}",
+
+  "promptHistory.title": "HISTORIQUE DES PROMPTS",
+  "promptHistory.active": "Actif",
+  "promptHistory.turn": "Tour",
+  "promptHistory.returnToBottom": "▼ Retour au plus recent [Echap / B / Entree]",
+  "promptHistory.inspectingTitle": "MODE INSPECTION: Tour #{0} - \"{1}\"",
+  "promptHistory.navHint": "[Alt+1..9] Aller au tour │ [Echap / B] Retour en bas │ [↑/↓] Defiler │ [Clic] Selectionner",
+  "promptHistory.empty": "(Aucun prompt precedent)"
 }

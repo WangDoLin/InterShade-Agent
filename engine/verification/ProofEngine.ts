@@ -251,7 +251,8 @@ export class ProofEngine {
     let typeExitCode = 0;
 
     const hasTsConfig = fs.existsSync(path.join(cwd, 'tsconfig.json'));
-    if (!options.skipTypecheck && hasTsConfig) {
+    const isChildTestRunner = process.env.INTERSHADER_TEST_MODE === 'mock';
+    if (!options.skipTypecheck && !isChildTestRunner && hasTsConfig) {
       typeCommand = 'npx tsc --noEmit';
       const execStart = Date.now();
       try {
@@ -323,7 +324,7 @@ export class ProofEngine {
     let buildCommand = '';
     let buildExitCode = 0;
 
-    if (!options.skipBuild && pkg?.scripts?.build) {
+    if (!options.skipBuild && !isChildTestRunner && pkg?.scripts?.build) {
       buildCommand = 'npm run build';
       const execStart = Date.now();
       try {
@@ -424,7 +425,7 @@ export class ProofEngine {
           unitOutput = (err.stdout || err.stderr || err.message || '').slice(0, 500);
           unitMessage = `Custom test command failed: ${unitOutput.slice(0, 200)}`;
         }
-      } else if (pkg?.scripts?.test && !pkg.scripts.test.includes('no test specified')) {
+      } else if (!isChildTestRunner && pkg?.scripts?.test && !pkg.scripts.test.includes('no test specified')) {
         unitCommand = 'npm test';
         const execStart = Date.now();
         try {

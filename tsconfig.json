@@ -12,7 +12,7 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "declaration": true,
+    "declaration": false,
     "noImplicitAny": true,
     "types": ["node"]
   },
@@ -21,6 +21,8 @@
     "config/**/*",
     "context/**/*",
     "engine/**/*",
+    "gateway/**/*",
+    "locales/**/*",
     "nn/**/*",
     "orchestrator/**/*",
     "providers/**/*",

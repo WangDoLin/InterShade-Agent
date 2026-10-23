@@ -38,10 +38,11 @@ export interface HypothesisCandidate {
 
 export interface RootCauseReport {
   hypothesis: string;
+  hypothesisSource?: 'heuristic-template' | 'empirical-repro' | 'llm-reasoner';
   invariantViolated: string;
   proposedArchitecture: string;
   hypotheses: HypothesisCandidate[];
-  topConfidence: number;
+  topConfidence: number | null;
 }
 
 export interface AtomicExecutionStep {
@@ -102,6 +103,7 @@ export interface PipelineContext {
   reconManifest?: ReconManifest;
   reproductionScriptPath?: string;
   reproductionVerifiedRed?: boolean;
+  reproductionFailureOutput?: string;
   rootCauseReport?: RootCauseReport;
   executionPlan?: AtomicExecutionPlan;
   candidatePatches?: CandidatePatch[];

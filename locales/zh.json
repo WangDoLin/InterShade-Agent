@@ -17,6 +17,8 @@
   "header.lang": "语言",
 
   "prompt.placeholder": "输入编程任务或斜杠命令 (/plan, /lang, /clear, /exit)...",
+  "prompt.busyPlaceholder": "输入下一条消息 (按 Enter 加入队列，按 Esc/Ctrl+C 中止)...",
+  "prompt.queuedReplace": "输入以替换排队中的提示词...",
   "prompt.submitting": "正在处理任务...",
   "prompt.slashCommands": "可用命令: /plan, /lang <id>, /clear, /exit",
   "prompt.abortHint": "按 Ctrl+C 中止当前执行",
@@ -44,11 +46,21 @@
   "slash.planModeOn": "计划模式已启用 (只读安全模式)",
   "slash.planModeOff": "计划模式已禁用 (完整执行模式)",
   "slash.clearDone": "会话消息已清空",
+  "slash.newSession": "已开始新对话 (会话 #{0})",
+  "slash.deletedSession": "已删除对话 (#{0}) 并开始新会话 (会话 #{1})",
   "slash.langChanged": "语言已切换为: {0}",
   "slash.langInvalid": "无效的语言 \"{0}\"。支持的语言: {1}",
   "slash.exit": "正在退出 InterShader CLI。",
 
   "errors.fileNotFound": "未找到文件 \"{0}\"。",
   "errors.commandFailed": "命令失败，退出代码 {0}: {1}",
-  "errors.unknown": "发生未知错误: {0}"
+  "errors.unknown": "发生未知错误: {0}",
+
+  "promptHistory.title": "提示词历史",
+  "promptHistory.active": "当前",
+  "promptHistory.turn": "轮次",
+  "promptHistory.returnToBottom": "▼ 返回最新 [Esc / B / Enter]",
+  "promptHistory.inspectingTitle": "检视模式: 第 #{0} 轮 - \"{1}\"",
+  "promptHistory.navHint": "[Alt+1..9] 跳转轮次 │ [Esc / B] 返回底部 │ [↑/↓] 滚动 │ [Click] 选择",
+  "promptHistory.empty": "(尚无历史提示词)"
 }

@@ -68,9 +68,13 @@ class OpenAIChatLanguageModel implements LanguageModel {
 
       const pendingToolCalls = new Map<number, PendingToolCall>();
       const seenCallIds = new Set<string>();
+      let finishReasonFromChunk: string | null = null;
 
       for await (const chunk of stream) {
         const choice = chunk.choices?.[0];
+        if (choice?.finish_reason) {
+          finishReasonFromChunk = choice.finish_reason;
+        }
         if (choice?.delta) {
           const delta = choice.delta;
 
@@ -78,9 +82,16 @@ class OpenAIChatLanguageModel implements LanguageModel {
             yield { type: 'text.delta', text: delta.content };
           }
 
-          if ('reasoning_content' in delta && typeof (delta as Record<string, unknown>).reasoning_content === 'string') {
-            const reasoning = (delta as Record<string, unknown>).reasoning_content as string;
-            yield { type: 'reasoning.delta', text: reasoning };
+          // Support DeepSeek R1, o3-mini, 9Router, and OpenAI-compatible reasoning delta fields (PROV-001)
+          const deltaRecord = delta as Record<string, unknown>;
+          const thoughtContent =
+            (typeof deltaRecord.reasoning_content === 'string' && deltaRecord.reasoning_content) ||
+            (typeof deltaRecord.reasoning === 'string' && deltaRecord.reasoning) ||
+            (typeof deltaRecord.thought === 'string' && deltaRecord.thought) ||
+            (typeof deltaRecord.thinking === 'string' && deltaRecord.thinking);
+
+          if (thoughtContent) {
+            yield { type: 'reasoning.delta', text: thoughtContent };
           }
 
           if (delta.tool_calls) {
@@ -143,7 +154,14 @@ class OpenAIChatLanguageModel implements LanguageModel {
         yield { type: 'tool_call.ready', toolCall: completedCall };
       }
 
-      const finishReason = pendingToolCalls.size > 0 ? 'tool_use' : 'end_turn';
+      const finishReason =
+        finishReasonFromChunk === 'length'
+          ? 'max_tokens'
+          : finishReasonFromChunk === 'content_filter'
+          ? 'content_filter'
+          : pendingToolCalls.size > 0
+          ? 'tool_use'
+          : 'end_turn';
       yield { type: 'response.finish', reason: finishReason };
     } catch (err) {
       const normalized = ProviderError.fromUnknown(err);

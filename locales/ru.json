@@ -17,6 +17,8 @@
   "header.lang": "Язык",
 
   "prompt.placeholder": "Введите задачу или команду слеш (/plan, /lang, /clear, /exit)...",
+  "prompt.busyPlaceholder": "Введите следующее сообщение (Enter — в очередь, Esc/Ctrl+C — отмена)...",
+  "prompt.queuedReplace": "Введите текст для замены промпта в очереди...",
   "prompt.submitting": "Обработка задачи...",
   "prompt.slashCommands": "Доступные команды: /plan, /lang <id>, /clear, /exit",
   "prompt.abortHint": "Нажмите Ctrl+C для отмены выполнения",
@@ -44,11 +46,21 @@
   "slash.planModeOn": "Режим плана ВКЛЮЧЕН (Безопасный режим только для чтения)",
   "slash.planModeOff": "Режим плана ВЫКЛЮЧЕН (Полный режим выполнения)",
   "slash.clearDone": "История сообщений очищена",
+  "slash.newSession": "Начат новый диалог (Сессия #{0})",
+  "slash.deletedSession": "Диалог (#{0}) удален и начата новая сессия (Сессия #{1})",
   "slash.langChanged": "Язык переключен на: {0}",
   "slash.langInvalid": "Недопустимый язык \"{0}\". Поддерживаются: {1}",
   "slash.exit": "Выход из InterShader CLI.",
 
   "errors.fileNotFound": "Файл \"{0}\" не найден.",
   "errors.commandFailed": "Команда завершилась с ошибкой {0}: {1}",
-  "errors.unknown": "Произошла непредвиденная ошибка: {0}"
+  "errors.unknown": "Произошла непредвиденная ошибка: {0}",
+
+  "promptHistory.title": "ИСТОРИЯ ПРОМПТОВ",
+  "promptHistory.active": "Активный",
+  "promptHistory.turn": "Шаг",
+  "promptHistory.returnToBottom": "▼ Вернуться к последнему [Esc / B / Enter]",
+  "promptHistory.inspectingTitle": "РЕЖИМ ПРОСМОТРА: Шаг #{0} - \"{1}\"",
+  "promptHistory.navHint": "[Alt+1..9] Перейти к шагу │ [Esc / B] Вниз │ [↑/↓] Прокрутка │ [Click] Выбрать",
+  "promptHistory.empty": "(Нет предыдущих промптов)"
 }

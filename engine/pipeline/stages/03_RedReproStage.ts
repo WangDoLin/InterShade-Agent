@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { execSync } from 'node:child_process';
 import type { PipelineStage, PipelineContext, StageResult } from '../PipelineStage.js';
+import { defaultProcessRunner } from '../../ports/ProcessRunner.js';
 
 export class RedReproStage implements PipelineStage {
   readonly index = 3;
@@ -30,19 +30,18 @@ export class RedReproStage implements PipelineStage {
     const existingTest = ctx.reconManifest?.relatedTests?.[0];
     if (existingTest) {
       const fullTestPath = path.resolve(ctx.cwd, existingTest);
-      try {
-        execSync(`npx tsx "${fullTestPath}"`, {
-          cwd: ctx.cwd,
-          stdio: 'pipe',
-          timeout: 25000
-        });
-        // Existing test passed, so formulate a targeted invariant script instead
-      } catch (err: any) {
-        // Existing test failed: check if it's a code assertion failure
-        const output = (err.stderr?.toString() || err.stdout?.toString() || '') + ' ' + (err.message || '');
+      const existingRes = await defaultProcessRunner.run({
+        command: 'npx',
+        args: ['tsx', fullTestPath],
+        cwd: ctx.cwd,
+        timeoutMs: 25_000,
+      });
+      if (existingRes.exitCode !== 0) {
+        const output = `${existingRes.stderr} ${existingRes.stdout}`.trim();
         if (!output.includes('Cannot find module') && !output.includes('SyntaxError')) {
           ctx.reproductionVerifiedRed = true;
           ctx.reproductionScriptPath = fullTestPath;
+          ctx.reproductionFailureOutput = output.slice(0, 500);
           ctx.logs.push(`Reproduction verified using existing test suite: ${existingTest}`);
           return {
             success: true,
@@ -115,22 +114,19 @@ testInvariant().then(() => {
     let verifiedRed = false;
     let failureOutput = '';
 
-    try {
-      execSync(`npx tsx "${reproFileName}"`, {
-        cwd: ctx.cwd,
-        stdio: 'pipe',
-        timeout: 25000
-      });
-      // Test passed -> not failing
-      verifiedRed = false;
-    } catch (err: any) {
-      failureOutput = (err.stderr?.toString() || err.stdout?.toString() || '') + ' ' + (err.message || '');
-      // Ensure failure is an invariant assertion failure, not syntax/module missing error
+    const reproRes = await defaultProcessRunner.run({
+      command: 'npx',
+      args: ['tsx', reproFileName],
+      cwd: ctx.cwd,
+      timeoutMs: 25_000,
+    });
+
+    if (reproRes.exitCode !== 0) {
+      failureOutput = `${reproRes.stderr} ${reproRes.stdout}`.trim();
       const isEnvironmentError = failureOutput.includes('Cannot find module') || failureOutput.includes('SyntaxError');
-      if (!isEnvironmentError && failureOutput.includes('Invariant failed')) {
+      if (!isEnvironmentError) {
         verifiedRed = true;
-      } else if (!isEnvironmentError) {
-        verifiedRed = true;
+        ctx.reproductionFailureOutput = failureOutput.slice(0, 500);
       }
     }
 

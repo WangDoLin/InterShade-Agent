@@ -17,6 +17,8 @@
   "header.lang": "언어",
 
   "prompt.placeholder": "작업 또는 슬래시 명령 (/plan, /lang, /clear, /exit) 입력...",
+  "prompt.busyPlaceholder": "다음 메시지 입력 (Enter: 대기열 추가, Esc/Ctrl+C: 중단)...",
+  "prompt.queuedReplace": "대기열의 프롬프트를 대체하려면 입력하세요...",
   "prompt.submitting": "작업 처리 중...",
   "prompt.slashCommands": "사용 가능한 명령: /plan, /lang <id>, /clear, /exit",
   "prompt.abortHint": "Ctrl+C 키를 눌러 실행 중단",
@@ -44,11 +46,21 @@
   "slash.planModeOn": "계획 모드 활성화됨 (안전한 읽기 전용 모드)",
   "slash.planModeOff": "계획 모드 비활성화됨 (전체 실행 모드)",
   "slash.clearDone": "세션 메시지 기록이 지워졌습니다",
+  "slash.newSession": "새 대화가 시작되었습니다 (세션 #{0})",
+  "slash.deletedSession": "대화 (#{0})를 삭제하고 새 세션을 시작했습니다 (세션 #{1})",
   "slash.langChanged": "언어가 다음으로 변경되었습니다: {0}",
   "slash.langInvalid": "유효하지 않은 언어 \"{0}\". 지원 언어: {1}",
   "slash.exit": "InterShader CLI를 종료합니다.",
 
   "errors.fileNotFound": "파일 \"{0}\"을(를) 찾을 수 없습니다.",
   "errors.commandFailed": "명령 실패 (종료 코드 {0}): {1}",
-  "errors.unknown": "예기치 않은 오류가 발생했습니다: {0}"
+  "errors.unknown": "예기치 않은 오류가 발생했습니다: {0}",
+
+  "promptHistory.title": "프롬프트 기록",
+  "promptHistory.active": "활성",
+  "promptHistory.turn": "턴",
+  "promptHistory.returnToBottom": "▼ 최신으로 돌아가기 [Esc / B / Enter]",
+  "promptHistory.inspectingTitle": "검사 모드: 턴 #{0} - \"{1}\"",
+  "promptHistory.navHint": "[Alt+1..9] 턴 이동 │ [Esc / B] 맨 아래로 돌아가기 │ [↑/↓] 스크롤 │ [Click] 선택",
+  "promptHistory.empty": "(이전 프롬프트 없음)"
 }

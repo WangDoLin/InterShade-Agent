@@ -61,7 +61,7 @@ export class SubagentTool extends BaseTool<SubagentArgs, string> {
         );
       }, 50);
 
-      return `[BACKGROUND AGENT DISPATCHED]: Worker "${workerId}" (${role.toUpperCase()}) running in background. Updates will be delivered via Mailbox.`;
+      return `[BACKGROUND AGENT DISPATCHED / BACKGROUND TASK SPAWNED]: Worker "${workerId}" (${role.toUpperCase()}) running in background. Updates will be delivered via Mailbox.`;
     }
 
     // Full 4-step workflow execution

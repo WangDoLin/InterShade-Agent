@@ -16,3 +16,5 @@ Thumbs.db
 .intershader/
 scratch/
 tests/fuzz_repro/
+test-results/
+coverage/

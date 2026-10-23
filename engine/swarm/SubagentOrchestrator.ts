@@ -56,7 +56,7 @@ export class SubagentOrchestrator extends EventEmitter {
   async decomposeAndDispatch(options: OrchestratorDispatchOptions): Promise<OrchestratorDispatchReport> {
     const startTime = Date.now();
     const baseCwd = options.baseCwd || process.cwd();
-    const autoMerge = options.autoMerge !== false;
+    const autoMerge = options.autoMerge === true;
 
     if (options.subtasks.length === 0) {
       return {

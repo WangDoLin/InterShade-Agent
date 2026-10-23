@@ -1,0 +1,93 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck-build:
+    name: typecheck + build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install (locked)
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: I18n Parity Check
+        run: npm run i18n:check
+
+      - name: Build
+        run: npm run build
+
+      - name: Smoke - CLI help
+        run: node dist/index.js --help
+
+      - name: Pack dry-run
+        run: npm pack --dry-run
+
+  test-tier1:
+    name: test tier1 (${{ matrix.os }}, node ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [22, 24]
+        exclude:
+          - os: windows-latest
+            node: 24
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Setup Git Identity
+        run: |
+          git config --global user.email "ci@intershader.local"
+          git config --global user.name "InterShader CI"
+
+      - name: Install (locked)
+        run: npm ci
+
+      - name: Run tier1 tests
+        run: npm run test:tier1
+        env:
+          CI: "true"
+          INTERSHADER_TEST_MODE: "mock"
+
+      - name: Upload test report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-${{ matrix.os }}-${{ matrix.node }}-${{ github.sha }}
+          path: |
+            test-results/
+            *.log
+          retention-days: 14

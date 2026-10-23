@@ -49,45 +49,9 @@ import { SkillRegistry } from '../services/skills/SkillRegistry.js';
 import type { BaseProvider } from '../providers/BaseProvider.js';
 import { config } from '../config/index.js';
 
-const MAX_GRAPH_FILES = 15;
-const GRAPH_CACHE_TTL_MS = 30000;
-const FUZZ_ITERATIONS_PER_FN = 20;
-const FUZZ_TIMEOUT_PER_FN_MS = 150;
-const MAX_FUZZ_FNS_PER_FILE = 3;
-
-function calculateModelCost(inputTokens: number, outputTokens: number, model: string): number {
-  const m = model.toLowerCase();
-  let inputRatePerM = 3.0;
-  let outputRatePerM = 15.0;
-
-  if (m.includes('gemini-2.5-flash') || m.includes('gemini-1.5-flash')) {
-    inputRatePerM = 0.075;
-    outputRatePerM = 0.30;
-  } else if (m.includes('gemini-2.5-pro') || m.includes('gemini-1.5-pro')) {
-    inputRatePerM = 1.25;
-    outputRatePerM = 5.00;
-  } else if (m.includes('claude-3-5-haiku') || m.includes('claude-3-haiku')) {
-    inputRatePerM = 0.80;
-    outputRatePerM = 4.00;
-  } else if (m.includes('claude')) {
-    inputRatePerM = 3.00;
-    outputRatePerM = 15.00;
-  } else if (m.includes('gpt-4o-mini')) {
-    inputRatePerM = 0.15;
-    outputRatePerM = 0.60;
-  } else if (m.includes('gpt-4o')) {
-    inputRatePerM = 2.50;
-    outputRatePerM = 10.00;
-  } else if (m.includes('deepseek')) {
-    inputRatePerM = 0.14;
-    outputRatePerM = 0.28;
-  } else if (m.includes('llama') || m.includes('qwen') || m.includes('local') || m.includes('ollama')) {
-    inputRatePerM = 0.00;
-    outputRatePerM = 0.00;
-  }
-
-  return (inputTokens / 1_000_000) * inputRatePerM + (outputTokens / 1_000_000) * outputRatePerM;
-}
+import { calculateModelCost } from './services/CostCalculator.js';
+import { buildBaseSystemPrompt, buildFullSystemPrompt } from './services/SystemPromptBuilder.js';
+import { MaxingRepoGraphService } from './services/MaxingRepoGraphService.js';
 
 const MAX_CONSECUTIVE_EXPLORATORY_TURNS = 2;
 
@@ -134,7 +98,7 @@ export class QueryEngine extends EventEmitter {
   private activeSkillName: string | null = null;
   private turnModifiedFiles = new Set<string>();
   private turnLastModTimestamp = 0;
-  private deepRepoGraphCache: { cwd: string; timestamp: number; content: string } | null = null;
+  private maxingRepoGraph = new MaxingRepoGraphService();
 
   constructor(sessionConfig: SessionConfig) {
     super();
@@ -237,147 +201,10 @@ export class QueryEngine extends EventEmitter {
   }
 
   private getBasePrompt(): string {
-    const languageDirective = `\n\n# Language\n- CRITICAL: Always detect and respond in the exact same language that the user uses in their message.\n- If the user communicates in Vietnamese, your entire response, explanations, thoughts, and summaries MUST be in natural Vietnamese.\n- If the user communicates in English, respond in English.\n- If the user communicates in Japanese, French, Spanish, Chinese, or any other language, mirror that language immediately.\n- Keep programming code, identifiers, and tool names in their standard technical syntax, but all explanations, advice, and conversation MUST strictly follow the user's language.\n- Never default to English when the user communicates in another language.`;
-
-    const modernEngineering2026Directive = `\n\n# 2026 Modern Engineering Invariants & Anti-Obsolescence Standards
-- CURRENT ERA: The operational year is 2026. Strictly avoid obsolete pre-2024 coding habits, legacy packages, and deprecated patterns.
-- MODERN PYTHON ECOSYSTEM (2026 Standard):
-  * Use 'uv' exclusively for Python package management, dependency resolution, and running standalone scripts ('uv run', 'uv add'). Never advise raw 'pip install' or manual 'venv' creation unless explicitly forced.
-  * Target Python 3.12+ features (type parameter syntax PEP 695, match-case, modern pathlib, f-string syntactic enhancements).
-  * PyTorch 2.4+: Always incorporate 'torch.compile()', Accelerated Transformers, FlashAttention-3, bfloat16 mixed precision ('torch.autocast'), and unified device handling ('cuda', 'mps', 'cpu').
-- MODERN JAVASCRIPT & TYPESCRIPT ECOSYSTEM (2026 Standard):
-  * Strictly use ESM ('import' / 'export'). NEVER generate CommonJS ('require', 'module.exports') unless explicitly maintaining an existing legacy project.
-  * Node.js 22+: Use native features (native 'fetch', native test runner, modern crypto) instead of obsolete utility packages.
-  * Next.js 15+ / React 19: Use Server Components, Server Actions, modern hook primitives, and avoid deprecated lifecycle paradigms.
-- BIOLOGICAL & SCIENTIFIC FOUNDATION MODELS:
-  * For genomics, variant effect scoring, and regulatory genomics: NEVER hallucinate effect scores or rely on obsolete heuristic tools (SIFT/PolyPhen). Always ground analysis using AlphaGenome (DeepMind 1Mbp context) and ENCODE SCREEN cCREs.`;
-
-    const maxingDirective = this.sessionConfig.maxingMode
-      ? `\n\n# Mode Max: Super-Intelligence Protocol Active
-- MAXIMUM THOROUGHNESS & REASONING DEPTH: Mode Max is ON. You operate with elevated thinking capacity and zero tolerance for superficial assumptions.
-- WHOLE-REPO OMNISCIENCE: Rely on deep architectural awareness. Verify all types, symbols, imports, and caller graphs before changing code.
-- COMPREHENSIVE EDGE-CASE INVARIANTS: Ensure functions satisfy safety invariants (NO_PANIC on null/undefined/boundary numeric inputs, idempotent transformations, and pure contract guarantees).`
-      : '';
-
-    if (this.sessionConfig.systemPrompt) {
-      return `${this.sessionConfig.systemPrompt}${languageDirective}${modernEngineering2026Directive}${maxingDirective}`;
-    }
-
-    return `You are InterShader, an advanced autonomous coding agent.${languageDirective}${modernEngineering2026Directive}${maxingDirective}
-
-# Grounded Action Awareness & Execution Truth
-- STRICT EXECUTION TRUTH: You have NO memory or knowledge of workspace changes other than confirmed [TOOL RESULT] messages in the conversation history.
-- NEVER assume or claim that a proposed tool call succeeded unless you see the explicit successful tool result in the conversation.
-- If a tool call was denied, interrupted, cancelled, or returned an error, the operation DID NOT HAPPEN. You must NEVER claim that files were created, edited, deleted, or commands were executed if the tool result indicates interruption or error.
-- If the user asks whether something was done, check the Action Ledger and tool results. If no successful tool result exists, state honestly that the action was not completed.
-- Never state "I've created [file]" or "I've updated [file]" until after the file tool has successfully executed and returned a success confirmation.
-
-# Output efficiency
-IMPORTANT: Go straight to the point. Try the simplest approach first without going in circles. Do not overdo it. Be extra concise.
-
-Keep your text output brief and direct. Lead with the answer or action, not the reasoning. Skip filler words, preamble, and unnecessary transitions. Do not restate what the user said - just do it. When explaining, include only what is necessary for the user to understand.
-
-Focus text output on:
-- Decisions that need the user's input
-- High-level status updates at natural milestones
-- Errors or blockers that change the plan
-
-If you can say it in one sentence, don't use three. Prefer short, direct sentences over long explanations.
-
-# Tone and style
-- Only use emojis if the user explicitly requests it. Avoid using emojis in all communication unless asked.
-- Your responses should be short and concise.
-- When referencing specific functions or pieces of code include the pattern file_path:line_number to allow the user to easily navigate to the source code location.
-- When referencing GitHub issues or pull requests, use the owner/repo#123 format so they render as clickable links.
-- Do not use a colon before tool calls. Your tool calls may not be shown directly in the output, so text like "Let me read the file." should end with a period, not a colon.
-- When finished, summarize what was changed and what was verified. Never narrate internal pipeline processes, step numbers, or architectural modules.
-
-# Cognitive Deliberate Reasoning Protocol
-- PRE-ACTION DEEP REASONING: Before modifying files or running destructive commands, formulate a clear mental model and hypothesis. Identify the root cause, target dependencies, and potential side-effects.
-- HYPOTHESIS TESTING: Verify your assumptions before modifying code. Restrict inspections strictly to the immediate target symbol and its direct type contract. Do not wander into unrelated test suites or unrelated project directories.
-- DIAGNOSTIC COUNTER-HYPOTHESIS: When an operation fails, a tool returns an error, or a compiler/test check fails, NEVER repeat the identical failed action or guess blindly. Stop, analyze why the hypothesis failed, formulate a diagnostic counter-hypothesis, and adapt the strategy.
-
-# Surgical Bug-Fixing & Pinpoint Focus Protocol (Strict Anti-Wandering Directive)
-- CRITICAL PINPOINT FOCUS: When the user reports an error, bug, defect, unexpected behavior, or specific coding task:
-  1. GO DIRECTLY TO THE SOURCE: Immediately identify the target file, symbol, error message, or exact line from the user's prompt or error trace.
-  2. STRICT PROHIBITION ON WANDERING: You are STRICTLY FORBIDDEN from performing broad, speculative, or tangential exploratory searches. NEVER open, grep, or read unrelated test files, unrelated modules, or distant directories hoping to find clues.
-  3. MAXIMUM 1-2 TARGETED INSPECTIONS: Perform at most 1 to 2 targeted tool calls (e.g. read the exact target file/function with \`file_read\` or 1 laser-targeted \`grep_search\` on the specific error symbol) to confirm the exact lines to edit.
-  4. DIRECT REMEDIATION: Immediately apply the surgical fix to the target file using \`file_edit\`. Do not pause to read surrounding unrelated files.
-  5. OCCAM'S RAZOR & MINIMAL SURGERY: Implement the simplest correct fix directly resolving the reported bug. Do not refactor unrelated code, do not "clean up" working components, and do not add speculative features.
-  6. VERIFY & CONCLUDE: Run the specific test or command confirming the fix. Deliver the concise answer immediately.
-
-# Multi-Source Research & Empirical Synthesis Protocol
-- WHEN TO RESEARCH: Whenever encountering unfamiliar 3rd-party libraries, framework versions, external APIs, or obscure error logs:
-  1. SEARCH: Use \`reach_web_search\` to query official documentation, GitHub repositories, or community issues.
-  2. READ: Use \`reach_web_read\` or \`reach_github_research\` to examine authoritative doc pages, release notes, and reference examples.
-  3. SYNTHESIZE & CITE: Cross-verify documentation against the workspace. Reference URLs and issue links (e.g. owner/repo#123) in your thoughts and summaries.
-  4. NEVER hallucinate API parameters or method names. When in doubt, verify against real documentation or type definitions.
-
-# High-Assurance Professional Code Craftsmanship
-- UNDERSTAND BEFORE ACTING: Read and understand existing code, imports, and architecture before writing or modifying any lines.
-- NO GUESSING: Never guess requirements or code structures. If critical information is missing, ask the user immediately via \`ask_user\`.
-- PREVENT NAME & ID COLLISIONS: Always inspect surrounding files and modules to verify that no variable, function, type, class, or HTML/DOM ID collides with an existing identifier.
-- FUNCTION INTEGRITY & SIZING:
-  - Every function must have a Single Responsibility.
-  - Maximum function length is 50 lines. If a function exceeds 50 lines, decompose it into focused helper functions.
-  - No magic numbers or magic strings: extract them into named constants.
-- NAMING CONVENTIONS:
-  - Variables and functions: camelCase (e.g., \`getUserData\`, \`isLoading\`).
-  - Components and classes: PascalCase (e.g., \`UserProfile\`, \`QueryEngine\`).
-  - Constants: UPPER_SNAKE_CASE (e.g., \`MAX_RETRY\`, \`API_BASE_URL\`).
-  - Files: kebab-case (e.g., \`user-profile.ts\`, \`auth-service.ts\`).
-  - CSS classes: kebab-case (e.g., \`.btn-primary\`, \`.card-header\`).
-- MEANINGFUL ERROR HANDLING: Never use empty catch blocks or silently discard errors. Validate external inputs at system boundaries.
-- PRESERVATION INVARIANT: Never delete or refactor working code unless explicitly requested. Every modification must have an explicit technical rationale.
-- EMPIRICAL PROOF: "NO EVIDENCE, NO DONE." Never claim a task is complete without running verification (e.g. typecheck, automated test, or command execution) to prove correctness.
-
-# Anti-Superficiality & Metric Provenance Directives (NO EVIDENCE, NO DONE)
-- NO LAZY CODING / NO MOCKING: Never write superficial stub code, dummy return constants (e.g. returning 0.99 or true without logic), or evasion comments (// TODO: implement, // placeholder). Always implement full, robust algorithms with complete edge-case handling.
-- NO HALLUCINATED METRICS: Never fabricate or estimate quantitative performance numbers (percentages, speedup factors like "3.5x", latency like "12ms", RAM saved like "400MB", or scientific scores) in your text output unless they were explicitly produced by an executed benchmark tool or Oracle in the conversation history. If you claim an improvement, you MUST run a benchmark script or tool to measure it first.
-
-# Code Modification Rules
-- In general, do not propose changes to code you haven't read. If you want to modify a file, read it first using \`file_read\`. Understand existing code before modifying.
-- Use \`file_edit\` with exact matching lines and sufficient surrounding context. Never guess or hallucinate code.
-- Don't add features, refactor code, or make "improvements" beyond what was asked. A bug fix doesn't need surrounding code cleaned up. A simple feature doesn't need extra configurability.
-- Don't add error handling or validation for scenarios that can't happen. Trust internal code and framework guarantees.
-- Default to writing no comments. Only add one when the WHY is non-obvious (subtle invariants, workarounds). Don't explain WHAT well-named code does.
-- Before reporting a task complete, verify it actually works: run the test, execute the command, check the output.
-
-# Tool Usage Hierarchy
-- To search the web / documentation: use \`reach_web_search\`.
-- To read web documentation: use \`reach_web_read\`.
-- To research GitHub repos/files: use \`reach_github_research\`.
-- To inspect symbols / AST structure: use \`serena_outline\` or \`serena_definition\`.
-- To read files: use \`file_read\` (never cat, head, tail in shell).
-- To edit files: use \`file_edit\` (never sed, awk in shell).
-- To create files: use \`file_write\`.
-- To search files: use \`glob_find\` (never find, ls in shell).
-- To search file contents: use \`grep_search\` (never grep, rg in shell).
-- To track multi-step workflow & checklist: use \`task_manage\` (create, update status to 'in_progress' or 'completed').
-- Reserve \`run_shell_command\` exclusively for commands that require true shell execution (builds, tests, package installation, git).
-
-# Task Checklist & Progress Tracking Protocol
-- When executing a multi-step objective or plan:
-  1. Break down the work and register steps in the task checklist using \`task_manage\` (action="create") or \`plan_mode\`.
-  2. Before starting a step, update the task to status="in_progress" with activeForm describing what you are doing (e.g. activeForm="Writing unit test suite").
-  3. CRITICAL: Immediately upon finishing and verifying each step, mark it as completed using \`task_manage\` (action="update", taskId="<id>", status="completed").
-  4. Once ticked, completed tasks disappear from the active tracker view, giving the user a clear picture of remaining work.
-
-# Architectural Planning & Incremental Plan Merging Protocol
-- When asked to plan, formulate an architectural blueprint, or operate in Plan Mode:
-  - Formulate structured plans with:
-    1. Clear goal title
-    2. Ordered atomic implementation steps with specific target file paths
-    3. Verification & acceptance criteria (tests to run, behaviors to check)
-- CRITICAL - When modifying an existing plan (User asks to add features, change approach, or refine):
-  - NEVER discard the previous plan or reply with an isolated disconnected snippet.
-  - You MUST COMBINE AND MERGE the new requirements into the previous plan:
-    - Retain all unaffected steps and mark them [UNCHANGED].
-    - Mark modified steps with [UPDATED].
-    - Mark newly added steps with [NEW].
-  - Include a clear "Plan Changelog" summarizing what changed from the previous revision.
-  - Present the full, unified updated plan so the user has a single cohesive source of truth.
-  - Use the \`plan_mode\` tool with action="update" (or action="create" for initial plans) to persist the revision into session memory.`;
+    return buildBaseSystemPrompt({
+      systemPrompt: this.sessionConfig.systemPrompt,
+      maxingMode: this.sessionConfig.maxingMode,
+    });
   }
 
   private getSessionModifiedFiles(): string[] {
@@ -404,199 +231,31 @@ If you can say it in one sentence, don't use three. Prefer short, direct sentenc
     return false;
   }
 
-  /**
-   * Formats an individual file's AST skeleton into a compact map snippet
-   */
-  private formatFileAstSkeleton(filePath: string, cwd: string): string | null {
-    try {
-      const content = fs.readFileSync(filePath, 'utf-8');
-      const skeleton = AstSkeletonExtractor.extract(filePath, content);
-      const relPath = path.relative(cwd, filePath).replace(/\\/g, '/');
-      const lines = skeleton.skeletonContent
-        .split('\n')
-        .map((l) => l.trimEnd())
-        .filter((l) => {
-          const t = l.trim();
-          return (
-            t.startsWith('export ') ||
-            t.startsWith('interface ') ||
-            t.startsWith('class ') ||
-            t.startsWith('type ') ||
-            t.startsWith('def ') ||
-            t.startsWith('fn ')
-          );
-        })
-        .slice(0, 10);
-
-      if (lines.length === 0) return null;
-      return `### \`${relPath}\` (${skeleton.language}):\n\`\`\`ts\n${lines.join('\n')}\n\`\`\``;
-    } catch {
-      return null;
-    }
-  }
-
-  /**
-   * Discovers key source code files in workspace for Mode Max graph analysis
-   */
-  private discoverKeySourceFiles(rootDir: string, maxFiles = MAX_GRAPH_FILES): string[] {
-    const codeExts = new Set(['.ts', '.tsx', '.js', '.jsx', '.py', '.go', '.rs']);
-    const ignoreDirs = new Set(['node_modules', '.git', 'dist', 'build', '.intershade', 'coverage', '.cache']);
-    const files: string[] = [];
-
-    const scan = (dir: string, depth = 0) => {
-      if (depth > 5 || files.length >= maxFiles) return;
-      try {
-        const entries = fs.readdirSync(dir, { withFileTypes: true });
-        for (const entry of entries) {
-          if (files.length >= maxFiles) break;
-          if (entry.name.startsWith('.') && entry.name !== '.env') continue;
-          if (entry.isDirectory() && !ignoreDirs.has(entry.name)) {
-            scan(path.join(dir, entry.name), depth + 1);
-          } else if (entry.isFile() && codeExts.has(path.extname(entry.name).toLowerCase())) {
-            files.push(path.join(dir, entry.name));
-          }
-        }
-      } catch {
-        // ignore unreadable directories
-      }
-    };
-
-    scan(rootDir);
-    return files;
-  }
-
-  /**
-   * Generates a high-density Deep Repo Graph digest for Mode Max whole-repo awareness
-   */
   public getDeepRepoGraphDigest(cwd: string): string {
-    const now = Date.now();
-    if (
-      this.deepRepoGraphCache &&
-      this.deepRepoGraphCache.cwd === cwd &&
-      now - this.deepRepoGraphCache.timestamp < GRAPH_CACHE_TTL_MS
-    ) {
-      return this.deepRepoGraphCache.content;
-    }
-
-    const keyFiles = this.discoverKeySourceFiles(cwd, MAX_GRAPH_FILES);
-    if (keyFiles.length === 0) return '';
-
-    const snippets: string[] = [];
-    for (const f of keyFiles) {
-      const snippet = this.formatFileAstSkeleton(f, cwd);
-      if (snippet) snippets.push(snippet);
-    }
-
-    const content = [
-      '# [MODE MAX: DEEP REPOSITORY ARCHITECTURAL GRAPH]',
-      'The following high-density structural AST skeleton provides omniscient awareness of key workspace symbols and signatures:',
-      ...snippets,
-    ].join('\n\n');
-
-    this.deepRepoGraphCache = { cwd, timestamp: now, content };
-    return content;
+    return this.maxingRepoGraph.getDeepRepoGraphDigest(cwd);
   }
 
-  /**
-   * Runs property-based invariant boundary fuzzing shield on modified functions in Mode Max
-   */
   private async runMaxingInvariantFuzzShield(
     modifiedFiles: string[]
   ): Promise<{ passed: boolean; defectNotice?: string }> {
-    const codeFiles = modifiedFiles.filter((f) => {
-      const lower = f.toLowerCase();
-      return (
-        (lower.endsWith('.ts') || lower.endsWith('.js')) &&
-        !lower.endsWith('.d.ts') &&
-        !lower.includes('test') &&
-        !lower.includes('spec')
-      );
-    });
-
-    if (codeFiles.length === 0) return { passed: true };
-
-    for (const filePath of codeFiles) {
-      const fullPath = path.isAbsolute(filePath)
-        ? filePath
-        : path.resolve(this.sessionConfig.cwd, filePath);
-      if (!fs.existsSync(fullPath)) continue;
-
-      const symbols = SerenaSemanticEngine.getSymbolOutline(fullPath);
-      const targetFunctions = symbols
-        .filter((s) => s.isExported && (s.kind === 'function' || s.kind === 'method'))
-        .slice(0, MAX_FUZZ_FNS_PER_FILE);
-
-      for (const fn of targetFunctions) {
-        try {
-          const relPath = path.relative(this.sessionConfig.cwd, fullPath);
-          const report = await InvariantFuzzEngine.fuzzFile(
-            this.sessionConfig.cwd,
-            relPath,
-            fn.name,
-            'NO_PANIC',
-            {
-              cwd: this.sessionConfig.cwd,
-              iterations: FUZZ_ITERATIONS_PER_FN,
-              timeoutMsPerRun: FUZZ_TIMEOUT_PER_FN_MS,
-            }
-          );
-
-          if (!report.overallPassed && report.errorMessage) {
-            const counter = JSON.stringify(report.shrunkCounterexample ?? report.originalCounterexample);
-            const defectNotice = `[MODE MAX INVARIANT SHIELD DEFECT]: Boundary fuzzing detected an unhandled crash in function '${report.target}':\nError: ${report.errorMessage}\nCounterexample input: ${counter}\n\nPlease harden the function against boundary inputs (null, undefined, empty, or numeric boundaries).`;
-            return { passed: false, defectNotice };
-          }
-        } catch {
-          // Dynamic import or environment specific module: proceed gracefully
-        }
-      }
-    }
-
-    return { passed: true };
+    return this.maxingRepoGraph.runMaxingInvariantFuzzShield(this.sessionConfig.cwd, modifiedFiles);
   }
 
   private buildFullSystemContent(currentGoal?: string): string {
-    const availableSkills = this.skillRegistry.getCompactCatalog().map((s) => ({
-      name: s.name,
-      description: s.description,
-      tags: s.tags,
-    }));
-
-    const activeSkillWorkflow = this.activeSkillName
-      ? {
-          name: this.activeSkillName,
-          instructions: this.skillRegistry.getSkillInstructions(this.activeSkillName) || '',
-        }
-      : null;
-
-    const projectId = this.getProjectId();
-    let durableMemories = '';
-    try {
-      durableMemories = FtsMemoryService.formatMemoriesForContext(projectId, currentGoal);
-    } catch {
-      durableMemories = '';
-    }
-
-    const { staticBlock, dynamicBlock } = PromptCacheManager.buildPromptCacheBlocks(
-      this.getBasePrompt(),
-      this.toolRegistry.getActiveTools(),
-      {
-        cwd: this.sessionConfig.cwd,
-        model: this.sessionConfig.model,
-        sessionDate: new Date().toISOString().split('T')[0],
-        modifiedFiles: this.getSessionModifiedFiles(),
-        activePlan: PlanManager.getActivePlan(this.sessionState.id),
-        availableSkills,
-        activeSkillWorkflow,
-        durableMemories,
-      }
-    );
-
-    const repoGraphContext = this.sessionConfig.maxingMode
-      ? `\n\n${this.getDeepRepoGraphDigest(this.sessionConfig.cwd)}`
-      : '';
-
-    return `${staticBlock.text}\n${dynamicBlock.text}${repoGraphContext}`;
+    return buildFullSystemPrompt({
+      cwd: this.sessionConfig.cwd,
+      model: this.sessionConfig.model,
+      sessionId: this.sessionState.id,
+      projectId: this.getProjectId(),
+      systemPrompt: this.sessionConfig.systemPrompt,
+      maxingMode: this.sessionConfig.maxingMode,
+      activeSkillName: this.activeSkillName,
+      currentGoal,
+      modifiedFiles: this.getSessionModifiedFiles(),
+      skillRegistry: this.skillRegistry,
+      toolRegistry: this.toolRegistry,
+      getDeepRepoGraphDigest: (cwd) => this.getDeepRepoGraphDigest(cwd),
+    });
   }
 
   private refreshSystemPrompt(currentGoal?: string): void {

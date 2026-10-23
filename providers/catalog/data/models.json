@@ -1,0 +1,407 @@
+{
+  "version": "2.1.1",
+  "effectiveAt": "2026-03-01",
+  "models": [
+    {
+      "providerId": "anthropic",
+      "modelId": "claude-3-7-sonnet-20250219",
+      "aliases": ["claude-3-7-sonnet", "sonnet", "claude-sonnet"],
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["text"],
+      "capabilities": {
+        "streaming": "supported",
+        "toolCalling": "supported",
+        "structuredOutput": "supported",
+        "reasoningControl": "supported",
+        "promptCaching": "supported",
+        "computerUse": "supported"
+      },
+      "contextWindow": 200000,
+      "maxOutputTokens": 64000,
+      "lifecycle": "stable",
+      "capabilitySource": "verified-catalog",
+      "pricing": {
+        "inputPer1MUsd": 3.0,
+        "outputPer1MUsd": 15.0,
+        "cachedInputPer1MUsd": 0.3,
+        "effectiveAt": "2026-03-01"
+      },
+      "tiers": {
+        "explorationModelId": "claude-3-5-haiku-20241022",
+        "reasoningTier": "deep"
+      },
+      "ratings": { "coding": 10, "reasoning": 10, "review": 9, "speed": 7 },
+      "statusNote": "Top-tier deep architectural reasoning & high thinking budget"
+    },
+    {
+      "providerId": "anthropic",
+      "modelId": "claude-3-5-sonnet-20241022",
+      "aliases": ["claude-3-5-sonnet"],
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["text"],
+      "capabilities": {
+        "streaming": "supported",
+        "toolCalling": "supported",
+        "structuredOutput": "supported",
+        "reasoningControl": "unsupported",
+        "promptCaching": "supported",
+        "computerUse": "supported"
+      },
+      "contextWindow": 200000,
+      "maxOutputTokens": 8192,
+      "lifecycle": "stable",
+      "capabilitySource": "verified-catalog",
+      "pricing": {
+        "inputPer1MUsd": 3.0,
+        "outputPer1MUsd": 15.0,
+        "cachedInputPer1MUsd": 0.3,
+        "effectiveAt": "2026-03-01"
+      },
+      "tiers": {
+        "explorationModelId": "claude-3-5-haiku-20241022",
+        "reasoningTier": "balanced"
+      },
+      "ratings": { "coding": 9, "reasoning": 8, "review": 9, "speed": 8 }
+    },
+    {
+      "providerId": "anthropic",
+      "modelId": "claude-3-5-haiku-20241022",
+      "aliases": ["claude-3-5-haiku", "haiku"],
+      "inputModalities": ["text"],
+      "outputModalities": ["text"],
+      "capabilities": {
+        "streaming": "supported",
+        "toolCalling": "supported",
+        "structuredOutput": "supported",
+        "reasoningControl": "unsupported",
+        "promptCaching": "supported",
+        "computerUse": "unsupported"
+      },
+      "contextWindow": 200000,
+      "maxOutputTokens": 8192,
+      "lifecycle": "stable",
+      "capabilitySource": "verified-catalog",
+      "pricing": {
+        "inputPer1MUsd": 0.8,
+        "outputPer1MUsd": 4.0,
+        "cachedInputPer1MUsd": 0.08,
+        "effectiveAt": "2026-03-01"
+      },
+      "tiers": {
+        "explorationModelId": "claude-3-5-haiku-20241022",
+        "reasoningTier": "fast"
+      },
+      "ratings": { "coding": 7, "reasoning": 7, "review": 7, "speed": 10 }
+    },
+    {
+      "providerId": "openai",
+      "modelId": "gpt-4o",
+      "aliases": ["4o"],
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["text"],
+      "capabilities": {
+        "streaming": "supported",
+        "toolCalling": "supported",
+        "structuredOutput": "supported",
+        "reasoningControl": "unsupported",
+        "promptCaching": "supported",
+        "computerUse": "unsupported"
+      },
+      "contextWindow": 128000,
+      "maxOutputTokens": 16384,
+      "lifecycle": "stable",
+      "capabilitySource": "verified-catalog",
+      "pricing": {
+        "inputPer1MUsd": 2.5,
+        "outputPer1MUsd": 10.0,
+        "cachedInputPer1MUsd": 1.25,
+        "effectiveAt": "2026-03-01"
+      },
+      "tiers": {
+        "explorationModelId": "gpt-4o-mini",
+        "reasoningTier": "balanced"
+      },
+      "ratings": { "coding": 8, "reasoning": 8, "review": 8, "speed": 8 }
+    },
+    {
+      "providerId": "openai",
+      "modelId": "gpt-4o-mini",
+      "aliases": ["4o-mini"],
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["text"],
+      "capabilities": {
+        "streaming": "supported",
+        "toolCalling": "supported",
+        "structuredOutput": "supported",
+        "reasoningControl": "unsupported",
+        "promptCaching": "supported",
+        "computerUse": "unsupported"
+      },
+      "contextWindow": 128000,
+      "maxOutputTokens": 16384,
+      "lifecycle": "stable",
+      "capabilitySource": "verified-catalog",
+      "pricing": {
+        "inputPer1MUsd": 0.15,
+        "outputPer1MUsd": 0.6,
+        "cachedInputPer1MUsd": 0.075,
+        "effectiveAt": "2026-03-01"
+      },
+      "tiers": {
+        "explorationModelId": "gpt-4o-mini",
+        "reasoningTier": "fast"
+      },
+      "ratings": { "coding": 7, "reasoning": 7, "review": 7, "speed": 10 }
+    },
+    {
+      "providerId": "openai",
+      "modelId": "o3-mini",
+      "aliases": ["o3"],
+      "inputModalities": ["text"],
+      "outputModalities": ["text"],
+      "capabilities": {
+        "streaming": "supported",
+        "toolCalling": "supported",
+        "structuredOutput": "supported",
+        "reasoningControl": "supported",
+        "promptCaching": "supported",
+        "computerUse": "unsupported"
+      },
+      "contextWindow": 200000,
+      "maxOutputTokens": 100000,
+      "lifecycle": "stable",
+      "capabilitySource": "verified-catalog",
+      "pricing": {
+        "inputPer1MUsd": 1.1,
+        "outputPer1MUsd": 4.4,
+        "cachedInputPer1MUsd": 0.55,
+        "effectiveAt": "2026-03-01"
+      },
+      "tiers": {
+        "explorationModelId": "gpt-4o-mini",
+        "reasoningTier": "deep"
+      },
+      "ratings": { "coding": 9, "reasoning": 10, "review": 8, "speed": 8 },
+      "statusNote": "High efficiency reasoning for algorithmic and race condition analysis"
+    },
+    {
+      "providerId": "deepseek",
+      "modelId": "deepseek-chat",
+      "aliases": ["deepseek", "deepseek-v3"],
+      "inputModalities": ["text"],
+      "outputModalities": ["text"],
+      "capabilities": {
+        "streaming": "supported",
+        "toolCalling": "supported",
+        "structuredOutput": "supported",
+        "reasoningControl": "unsupported",
+        "promptCaching": "supported",
+        "computerUse": "unsupported"
+      },
+      "contextWindow": 64000,
+      "maxOutputTokens": 8192,
+      "lifecycle": "stable",
+      "capabilitySource": "verified-catalog",
+      "pricing": {
+        "inputPer1MUsd": 0.14,
+        "outputPer1MUsd": 0.28,
+        "cachedInputPer1MUsd": 0.014,
+        "effectiveAt": "2026-03-01"
+      },
+      "tiers": {
+        "explorationModelId": "deepseek-chat",
+        "reasoningTier": "balanced"
+      },
+      "ratings": { "coding": 8, "reasoning": 8, "review": 7, "speed": 8 },
+      "statusNote": "High efficiency budget coding model"
+    },
+    {
+      "providerId": "deepseek",
+      "modelId": "deepseek-reasoner",
+      "aliases": ["deepseek-r1", "r1"],
+      "inputModalities": ["text"],
+      "outputModalities": ["text"],
+      "capabilities": {
+        "streaming": "supported",
+        "toolCalling": "unsupported",
+        "structuredOutput": "unsupported",
+        "reasoningControl": "supported",
+        "promptCaching": "supported",
+        "computerUse": "unsupported"
+      },
+      "contextWindow": 64000,
+      "maxOutputTokens": 8192,
+      "lifecycle": "stable",
+      "capabilitySource": "verified-catalog",
+      "pricing": {
+        "inputPer1MUsd": 0.55,
+        "outputPer1MUsd": 2.19,
+        "cachedInputPer1MUsd": 0.14,
+        "effectiveAt": "2026-03-01"
+      },
+      "tiers": {
+        "explorationModelId": "deepseek-chat",
+        "reasoningTier": "deep"
+      },
+      "ratings": { "coding": 9, "reasoning": 9, "review": 8, "speed": 6 }
+    },
+    {
+      "providerId": "google",
+      "modelId": "gemini-2.5-flash",
+      "aliases": ["gemini-flash", "flash"],
+      "inputModalities": ["text", "image", "audio", "video"],
+      "outputModalities": ["text"],
+      "capabilities": {
+        "streaming": "supported",
+        "toolCalling": "supported",
+        "structuredOutput": "supported",
+        "reasoningControl": "supported",
+        "promptCaching": "supported",
+        "computerUse": "unsupported"
+      },
+      "contextWindow": 1048576,
+      "maxOutputTokens": 65536,
+      "lifecycle": "stable",
+      "capabilitySource": "verified-catalog",
+      "pricing": {
+        "inputPer1MUsd": 0.15,
+        "outputPer1MUsd": 0.6,
+        "cachedInputPer1MUsd": 0.0375,
+        "effectiveAt": "2026-03-01"
+      },
+      "tiers": {
+        "explorationModelId": "gemini-2.5-flash",
+        "reasoningTier": "fast"
+      },
+      "ratings": { "coding": 8, "reasoning": 8, "review": 8, "speed": 10 }
+    },
+    {
+      "providerId": "google",
+      "modelId": "gemini-2.5-pro",
+      "aliases": ["gemini-pro", "pro"],
+      "inputModalities": ["text", "image", "audio", "video"],
+      "outputModalities": ["text"],
+      "capabilities": {
+        "streaming": "supported",
+        "toolCalling": "supported",
+        "structuredOutput": "supported",
+        "reasoningControl": "supported",
+        "promptCaching": "supported",
+        "computerUse": "supported"
+      },
+      "contextWindow": 1048576,
+      "maxOutputTokens": 65536,
+      "lifecycle": "stable",
+      "capabilitySource": "verified-catalog",
+      "pricing": {
+        "inputPer1MUsd": 1.25,
+        "outputPer1MUsd": 10.0,
+        "cachedInputPer1MUsd": 0.3125,
+        "effectiveAt": "2026-03-01"
+      },
+      "tiers": {
+        "explorationModelId": "gemini-2.5-flash",
+        "reasoningTier": "deep"
+      },
+      "ratings": { "coding": 9, "reasoning": 9, "review": 9, "speed": 8 }
+    },
+    {
+      "providerId": "google",
+      "modelId": "gemini-3.8-flash",
+      "aliases": [],
+      "inputModalities": ["text", "image", "audio", "video"],
+      "outputModalities": ["text"],
+      "capabilities": {
+        "streaming": "supported",
+        "toolCalling": "supported",
+        "structuredOutput": "supported",
+        "reasoningControl": "supported",
+        "promptCaching": "supported",
+        "computerUse": "supported"
+      },
+      "contextWindow": 1048576,
+      "maxOutputTokens": 65536,
+      "lifecycle": "stable",
+      "capabilitySource": "verified-catalog",
+      "pricing": {
+        "inputPer1MUsd": 0.15,
+        "outputPer1MUsd": 0.6,
+        "effectiveAt": "2026-03-01"
+      },
+      "tiers": {
+        "explorationModelId": "gemini-2.5-flash",
+        "reasoningTier": "fast"
+      },
+      "ratings": { "coding": 9, "reasoning": 9, "review": 8, "speed": 10 },
+      "statusNote": "Active flagship for long-horizon autonomous software engineering"
+    },
+    {
+      "providerId": "google",
+      "modelId": "gemini-2.0-flash",
+      "aliases": [],
+      "inputModalities": ["text", "image", "audio", "video"],
+      "outputModalities": ["text"],
+      "capabilities": {
+        "streaming": "supported",
+        "toolCalling": "supported",
+        "structuredOutput": "supported",
+        "reasoningControl": "unsupported",
+        "promptCaching": "supported",
+        "computerUse": "unsupported"
+      },
+      "contextWindow": 1048576,
+      "maxOutputTokens": 8192,
+      "lifecycle": "deprecated",
+      "capabilitySource": "verified-catalog",
+      "pricing": {
+        "inputPer1MUsd": 0.1,
+        "outputPer1MUsd": 0.4,
+        "effectiveAt": "2026-03-01"
+      },
+      "tiers": {
+        "explorationModelId": "gemini-2.5-flash",
+        "reasoningTier": "fast"
+      },
+      "ratings": { "coding": 7, "reasoning": 7, "review": 6, "speed": 9 },
+      "statusNote": "Catalog shutdown - migrated to gemini-3.8-flash"
+    },
+    {
+      "providerId": "ollama",
+      "modelId": "llama3.3",
+      "aliases": ["llama3"],
+      "inputModalities": ["text"],
+      "outputModalities": ["text"],
+      "capabilities": {
+        "streaming": "supported",
+        "toolCalling": "supported",
+        "structuredOutput": "unsupported",
+        "reasoningControl": "unsupported",
+        "promptCaching": "unsupported",
+        "computerUse": "unsupported"
+      },
+      "contextWindow": 128000,
+      "maxOutputTokens": 8192,
+      "lifecycle": "stable",
+      "capabilitySource": "verified-catalog"
+    },
+    {
+      "providerId": "ollama",
+      "modelId": "qwen2.5-coder:14b",
+      "aliases": ["qwen-coder"],
+      "inputModalities": ["text"],
+      "outputModalities": ["text"],
+      "capabilities": {
+        "streaming": "supported",
+        "toolCalling": "supported",
+        "structuredOutput": "unsupported",
+        "reasoningControl": "unsupported",
+        "promptCaching": "unsupported",
+        "computerUse": "unsupported"
+      },
+      "contextWindow": 32768,
+      "maxOutputTokens": 8192,
+      "lifecycle": "stable",
+      "capabilitySource": "verified-catalog"
+    }
+  ]
+}

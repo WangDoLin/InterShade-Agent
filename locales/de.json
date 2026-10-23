@@ -17,6 +17,8 @@
   "header.lang": "Sprache",
 
   "prompt.placeholder": "Aufgabe oder Slash-Befehl eingeben (/plan, /lang, /clear, /exit)...",
+  "prompt.busyPlaceholder": "Naechste Nachricht eingeben (Enter fuer Warteschlange, Esc/Strg+C zum Abbrechen)...",
+  "prompt.queuedReplace": "Eingeben, um den eingereihten Prompt zu ersetzen...",
   "prompt.submitting": "Aufgabe wird verarbeitet...",
   "prompt.slashCommands": "Verfuegbare Befehle: /plan, /lang <id>, /clear, /exit",
   "prompt.abortHint": "Druecken Sie Strg+C zum Abbrechen",
@@ -44,11 +46,21 @@
   "slash.planModeOn": "Plan-Modus AKTIVIERT (Sicherer Nur-Lese-Modus)",
   "slash.planModeOff": "Plan-Modus DEAKTIVIERT (Vollstaendiger Ausfuehrungsmodus)",
   "slash.clearDone": "Nachrichtenverlauf geleert",
+  "slash.newSession": "Neue Unterhaltung gestartet (Sitzung #{0})",
+  "slash.deletedSession": "Unterhaltung (#{0}) geloescht und neue Sitzung gestartet (Sitzung #{1})",
   "slash.langChanged": "Sprache gewechselt zu: {0}",
   "slash.langInvalid": "Ungueltige Sprache \"{0}\". Unterstuetzt: {1}",
   "slash.exit": "InterShader CLI wird beendet.",
 
   "errors.fileNotFound": "Datei \"{0}\" nicht gefunden.",
   "errors.commandFailed": "Befehl fehlgeschlagen mit Exit-Code {0}: {1}",
-  "errors.unknown": "Ein unerwarteter Fehler ist aufgetreten: {0}"
+  "errors.unknown": "Ein unerwarteter Fehler ist aufgetreten: {0}",
+
+  "promptHistory.title": "PROMPT-VERLAUF",
+  "promptHistory.active": "Aktiv",
+  "promptHistory.turn": "Runde",
+  "promptHistory.returnToBottom": "▼ Zurueck zum Neuesten [Esc / B / Enter]",
+  "promptHistory.inspectingTitle": "INSPEKTIONSMODUS: Runde #{0} - \"{1}\"",
+  "promptHistory.navHint": "[Alt+1..9] Zu Runde springen │ [Esc / B] Zurueck nach unten │ [↑/↓] Scrollen │ [Klick] Auswaehlen",
+  "promptHistory.empty": "(Keine vorherigen Prompts)"
 }

@@ -162,8 +162,12 @@ export class SkillRegistry {
       const { frontmatter, body } = SkillRegistry.parseFrontmatter(rawFile);
 
       const skillName = frontmatter.name || path.basename(skillDir);
+      const hasScriptsDir = fs.existsSync(path.join(skillDir, 'scripts'));
       const capabilities: SkillCapabilities = {
-        scriptExecution: Boolean(frontmatter.capabilities?.scriptExecution),
+        scriptExecution:
+          frontmatter.capabilities?.scriptExecution !== undefined
+            ? Boolean(frontmatter.capabilities.scriptExecution)
+            : tier === 'global' && hasScriptsDir,
         networkAccess: Boolean(frontmatter.capabilities?.networkAccess),
         filesystemWrite: Boolean(frontmatter.capabilities?.filesystemWrite),
       };

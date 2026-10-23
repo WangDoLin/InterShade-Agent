@@ -40,7 +40,7 @@ export type UnifiedStreamEvent =
   | { type: 'tool_call.delta'; callId: string; inputDelta: string }
   | { type: 'tool_call.ready'; toolCall: ToolCall }
   | { type: 'usage'; usage: TokenUsage }
-  | { type: 'response.finish'; reason: 'end_turn' | 'tool_use' | 'max_tokens' | 'stop' }
+  | { type: 'response.finish'; reason: 'end_turn' | 'tool_use' | 'max_tokens' | 'stop' | 'content_filter' }
   | { type: 'error'; error: NormalizedProviderError };
 
 export interface LanguageModel {

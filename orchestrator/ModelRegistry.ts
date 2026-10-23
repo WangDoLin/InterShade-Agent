@@ -1,3 +1,5 @@
+import { ModelResolver } from '../providers/catalog/ModelResolver.js';
+
 export type ProviderName = 'google' | 'anthropic' | 'openai' | 'deepseek';
 
 export interface ModelCapabilityRatings {
@@ -189,30 +191,13 @@ export class ModelRegistry {
 
   /**
    * Intelligently resolves the maximum context window for a given model string
+   * using the unified ModelResolver & ModelCatalogStore (CAT-001..030).
    */
   static resolveModelContextWindow(model: string, explicitMax?: number): number {
     if (explicitMax && explicitMax > 0) return explicitMax;
     const direct = this.get(model);
     if (direct?.contextWindow) return direct.contextWindow;
-
-    const baseName = model.includes('/') ? model.split('/').pop() || model : model;
-    const baseProfile = this.get(baseName);
-    if (baseProfile?.contextWindow) return baseProfile.contextWindow;
-
-    const m = model.toLowerCase();
-    if (m.includes('gemini-1.5') || m.includes('gemini-2.0') || m.includes('gemini-2.5') || m.includes('gemini-3')) {
-      return 1_048_576;
-    }
-    if (m.includes('claude-3-7') || m.includes('claude-3-5') || m.includes('claude-3')) {
-      return 200_000;
-    }
-    if (m.includes('gpt-4o') || m.includes('o1') || m.includes('o3')) {
-      return 128_000;
-    }
-    if (m.includes('deepseek')) {
-      return 64_000;
-    }
-    return 160_000;
+    return ModelResolver.resolveContextWindow(model, explicitMax);
   }
 }
 

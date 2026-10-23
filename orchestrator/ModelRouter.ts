@@ -61,13 +61,17 @@ export class ModelRouter {
       };
     }
 
-    // 1. Classification: REVIEW / SECURITY AUDIT
+    // 1. Classification: REVIEW / SECURITY AUDIT (English + Vietnamese ROUTE-010)
     if (
       request.isAudit ||
       promptLower.includes('review') ||
       promptLower.includes('audit') ||
       promptLower.includes('vulnerability') ||
-      promptLower.includes('security')
+      promptLower.includes('security') ||
+      promptLower.includes('đánh giá') ||
+      promptLower.includes('kiểm toán') ||
+      promptLower.includes('bảo mật') ||
+      promptLower.includes('lỗ hổng')
     ) {
       const best = ModelRegistry.selectOptimalModel({
         primarySkill: 'review',
@@ -92,7 +96,7 @@ export class ModelRouter {
       };
     }
 
-    // 2. Classification: HEAVY REASONING & MULTI-FILE ARCHITECTURE
+    // 2. Classification: HEAVY REASONING & MULTI-FILE ARCHITECTURE (English + Vietnamese ROUTE-010)
     const isReasoning =
       fileCount > 5 ||
       promptLower.includes('architect') ||
@@ -101,7 +105,10 @@ export class ModelRouter {
       promptLower.includes('root cause') ||
       promptLower.includes('race condition') ||
       promptLower.includes('deadlock') ||
-      promptLower.includes('complex bug');
+      promptLower.includes('complex bug') ||
+      promptLower.includes('kiến trúc') ||
+      promptLower.includes('tái cấu trúc') ||
+      promptLower.includes('nguyên nhân gốc');
 
     if (isReasoning) {
       const best = ModelRegistry.selectOptimalModel({

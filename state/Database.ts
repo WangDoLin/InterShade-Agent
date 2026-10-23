@@ -1,32 +1,49 @@
 import { createRequire } from 'module';
 import path from 'path';
 import fs from 'fs';
-import { config } from '../config/index.js';
+import { config, ensureDataDir } from '../config/index.js';
 
 const require = createRequire(import.meta.url);
 const { DatabaseSync } = require('node:sqlite');
 
-let dbInstance: any = null;
+export interface SqliteStatement {
+  run(...params: unknown[]): { changes: number; lastInsertRowid: number | bigint };
+  get(...params: unknown[]): any;
+  all(...params: unknown[]): any[];
+}
+
+export interface SqliteDatabase {
+  exec(sql: string): void;
+  prepare(sql: string): SqliteStatement;
+  close(): void;
+}
+
+const TARGET_SCHEMA_VERSION = 1;
+
+let dbInstance: SqliteDatabase | null = null;
 
 /**
- * Initialize SQLite connection with WAL (Write-Ahead Logging) mode
+ * Initialize SQLite connection with WAL (Write-Ahead Logging) mode,
+ * 5000ms busy_timeout, and PRAGMA user_version schema migrations (STATE-DB-01..03).
  */
-export function getDatabase(): any {
+export function getDatabase(): SqliteDatabase {
   if (dbInstance) {
     return dbInstance;
   }
 
-  const dbPath = path.join(config.dataDir, 'state.db');
+  const dataDir = ensureDataDir(config.dataDir);
+  const dbPath = path.join(dataDir, 'state.db');
   const dbDir = path.dirname(dbPath);
   if (!fs.existsSync(dbDir)) {
     fs.mkdirSync(dbDir, { recursive: true });
   }
 
-  const db = new DatabaseSync(dbPath);
+  const db: SqliteDatabase = new DatabaseSync(dbPath);
 
   db.exec('PRAGMA journal_mode = WAL;');
   db.exec('PRAGMA synchronous = NORMAL;');
   db.exec('PRAGMA foreign_keys = ON;');
+  db.exec('PRAGMA busy_timeout = 5000;');
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS sessions (
@@ -155,37 +172,72 @@ export function getDatabase(): any {
     CREATE INDEX IF NOT EXISTS idx_trajectories_task ON trajectories(task_id);
   `);
 
-  // Ensure tasks table has composite primary key (id, session_id) so each session has independent task IDs (#1, #2...)
-  try {
-    const tableInfo = db.prepare('PRAGMA table_info(tasks)').all() as Array<{ name: string; pk: number }>;
-    const pkCols = tableInfo.filter((c) => c.pk > 0);
-    if (pkCols.length === 1 && pkCols[0].name === 'id') {
-      db.exec(`
-        CREATE TABLE tasks_migrated (
-          id TEXT NOT NULL,
-          session_id TEXT NOT NULL,
-          subject TEXT NOT NULL,
-          description TEXT NOT NULL,
-          status TEXT NOT NULL,
-          active_form TEXT,
-          blocks TEXT NOT NULL,
-          blocked_by TEXT NOT NULL,
-          metadata TEXT,
-          created_at INTEGER NOT NULL,
-          updated_at INTEGER NOT NULL,
-          PRIMARY KEY (id, session_id),
-          FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
-        );
-        INSERT OR IGNORE INTO tasks_migrated SELECT * FROM tasks;
-        DROP TABLE tasks;
-        ALTER TABLE tasks_migrated RENAME TO tasks;
-        CREATE INDEX IF NOT EXISTS idx_tasks_session ON tasks(session_id, created_at);
-      `);
-    }
-  } catch {
-    // Non-blocking migration
-  }
+  runSchemaMigrations(db);
 
   dbInstance = db;
   return db;
+}
+
+/**
+ * Versioned schema migration runner tracked via PRAGMA user_version (STATE-DB-01).
+ */
+function runSchemaMigrations(db: SqliteDatabase): void {
+  try {
+    const row = db.prepare('PRAGMA user_version').get() as { user_version?: number } | undefined;
+    const currentVersion = row?.user_version ?? 0;
+    if (currentVersion >= TARGET_SCHEMA_VERSION) {
+      return;
+    }
+
+    if (currentVersion < 1) {
+      const tableInfo = db.prepare('PRAGMA table_info(tasks)').all() as Array<{ name: string; pk: number }>;
+      const pkCols = tableInfo.filter((c) => c.pk > 0);
+      if (pkCols.length === 1 && pkCols[0].name === 'id') {
+        db.exec(`
+          CREATE TABLE tasks_migrated (
+            id TEXT NOT NULL,
+            session_id TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            description TEXT NOT NULL,
+            status TEXT NOT NULL,
+            active_form TEXT,
+            blocks TEXT NOT NULL,
+            blocked_by TEXT NOT NULL,
+            metadata TEXT,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            PRIMARY KEY (id, session_id),
+            FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+          );
+          INSERT OR IGNORE INTO tasks_migrated SELECT * FROM tasks;
+          DROP TABLE tasks;
+          ALTER TABLE tasks_migrated RENAME TO tasks;
+          CREATE INDEX IF NOT EXISTS idx_tasks_session ON tasks(session_id, created_at);
+        `);
+      }
+      db.exec(`PRAGMA user_version = ${TARGET_SCHEMA_VERSION};`);
+    }
+  } catch {
+    // Non-blocking migration fallback
+  }
+}
+
+/**
+ * Execute a synchronous callback inside an atomic SQLite transaction (STATE-DB-03).
+ */
+export function runInTransaction<T>(fn: (db: SqliteDatabase) => T): T {
+  const db = getDatabase();
+  db.exec('BEGIN IMMEDIATE;');
+  try {
+    const result = fn(db);
+    db.exec('COMMIT;');
+    return result;
+  } catch (error) {
+    try {
+      db.exec('ROLLBACK;');
+    } catch {
+      // Ignore rollback error if transaction already closed
+    }
+    throw error;
+  }
 }
