@@ -791,29 +791,44 @@
     "properties": {
       "type": {
         "type": "string",
-        "enum": [
-          "decision",
-          "lesson",
-          "architecture",
-          "bug_pattern",
-          "skill"
-        ],
-        "description": "Category of memory to record"
+        "description": "Category of memory to record (e.g. decision, lesson, architecture, bug_pattern, skill, convention, gotcha, bug, research)"
+      },
+      "category": {
+        "type": "string",
+        "description": "Alias for type"
       },
       "title": {
         "type": "string",
         "description": "Short descriptive title summarizing the decision or insight"
       },
+      "topic": {
+        "type": "string",
+        "description": "Alias for title"
+      },
+      "name": {
+        "type": "string",
+        "description": "Alias for title"
+      },
       "content": {
         "type": "string",
         "description": "Detailed content, code invariant, rule, or explanation to remember permanently"
+      },
+      "summary": {
+        "type": "string",
+        "description": "Alias for content"
+      },
+      "body": {
+        "type": "string",
+        "description": "Alias for content"
+      },
+      "tags": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Optional tags for indexing"
       }
-    },
-    "required": [
-      "type",
-      "title",
-      "content"
-    ]
+    }
   },
   "memory_search": {
     "type": "object",

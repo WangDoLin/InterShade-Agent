@@ -49,6 +49,7 @@ export class ShellTool extends BaseTool<{ command: string; timeoutMs?: number },
     }
 
     const timeout = args.timeoutMs || 60000;
+    const shellToUse = process.platform === 'win32' ? 'powershell.exe' : undefined;
 
     return new Promise((resolve, reject) => {
       const child = exec(
@@ -58,6 +59,7 @@ export class ShellTool extends BaseTool<{ command: string; timeoutMs?: number },
           timeout,
           maxBuffer: 5 * 1024 * 1024,
           windowsHide: true,
+          shell: shellToUse,
         },
         (error, stdout, stderr) => {
           const rawStdout = stdout || '';

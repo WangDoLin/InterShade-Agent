@@ -1226,6 +1226,27 @@ export class QueryEngine extends EventEmitter {
         }
 
         if (streamError) {
+          // Check if streamError is a recoverable tool validation / argument mismatch error
+          const isToolSchemaMismatch =
+            streamError.includes('INVALID_TOOL_ARGUMENTS') ||
+            streamError.includes('REJECT_UNREGISTERED_TOOL') ||
+            streamError.includes('REJECT_TOOL_PAYLOAD_TOO_LARGE');
+
+          if (isToolSchemaMismatch) {
+            this.emit(
+              'verification',
+              `[Tool Validation Self-Healing]: ${streamError}. Feeding error back to model to self-correct...`
+            );
+            const selfHealingMsg: UnifiedMessage = {
+              id: randomUUID(),
+              role: 'user',
+              content: `[TOOL EXECUTION ERROR]: ${streamError}\n\nVui lòng kiểm tra lại cấu trúc tham số (schema) của công cụ và gọi lại với tham số hợp lệ, hoặc tiếp tục thực hiện công việc bằng phương án khác mà không ngắt giữa chừng.`,
+              timestamp: Date.now(),
+            };
+            this.messages.push(selfHealingMsg);
+            continue; // Self-healing loop: keep working!
+          }
+
           // If rate limit / quota exceeded and context tokens are large, auto-compact to unblock next turn
           if (this.messages.length > 3 && this.sessionState.totalInputTokens > 40000) {
             const comp = TrajectoryCompressor.compressIfNeeded(this.messages, 30000, 0.4);
