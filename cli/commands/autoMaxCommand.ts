@@ -144,6 +144,9 @@ export const autoMaxCommand: LocalCommand = {
       }
 
       const engine = getSharedAutoMaxEngine();
+      const qe = (ctx.sessionState as Record<string, unknown>).queryEngine as
+        | { processQuery: (prompt: string) => Promise<string> }
+        | undefined;
       const report = await engine.runMission({
         sessionId: String(ctx.sessionState.id || 'cli-automax'),
         cwd: ctx.cwd,
@@ -151,6 +154,11 @@ export const autoMaxCommand: LocalCommand = {
         durationMinutes,
         maxIterations,
         thinkingBudget: 16384,
+        executor: qe
+          ? async (prompt: string) => {
+              return await qe.processQuery(prompt);
+            }
+          : undefined,
       });
 
       return report.summary;

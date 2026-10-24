@@ -126,7 +126,64 @@ export class ToolExecutionGate {
             // Keep original if not JSON
           }
         }
-        const parseResult = toolDef.inputSchema.safeParse(args);
+        let parseResult = toolDef.inputSchema.safeParse(args);
+        if (!parseResult.success && args && typeof args === 'object' && !Array.isArray(args)) {
+          // Attempt smart coercion based on schema validation issues
+          const coerced: Record<string, unknown> = { ...(args as Record<string, unknown>) };
+          let changed = false;
+          for (const issue of parseResult.error.issues) {
+            const key = issue.path[0];
+            if (typeof key === 'string' && key in coerced) {
+              const val = coerced[key];
+              // 1. Array expected, string or primitive received
+              if (issue.code === 'invalid_type' && issue.expected === 'array') {
+                if (typeof val === 'string') {
+                  coerced[key] = val.split(',').map((s) => s.trim()).filter(Boolean);
+                  changed = true;
+                } else if (val !== undefined && val !== null) {
+                  coerced[key] = [val];
+                  changed = true;
+                }
+              }
+              // 2. String expected, number, boolean or object received
+              else if (issue.code === 'invalid_type' && issue.expected === 'string') {
+                if (typeof val === 'number' || typeof val === 'boolean') {
+                  coerced[key] = String(val);
+                  changed = true;
+                } else if (typeof val === 'object' && val !== null) {
+                  coerced[key] = JSON.stringify(val);
+                  changed = true;
+                }
+              }
+              // 3. Number expected, numeric string received
+              else if (issue.code === 'invalid_type' && issue.expected === 'number' && typeof val === 'string') {
+                const parsedNum = Number(val);
+                if (!isNaN(parsedNum)) {
+                  coerced[key] = parsedNum;
+                  changed = true;
+                }
+              }
+              // 4. Boolean expected, string received
+              else if (issue.code === 'invalid_type' && issue.expected === 'boolean' && typeof val === 'string') {
+                if (val.toLowerCase() === 'true' || val === '1') {
+                  coerced[key] = true;
+                  changed = true;
+                } else if (val.toLowerCase() === 'false' || val === '0') {
+                  coerced[key] = false;
+                  changed = true;
+                }
+              }
+            }
+          }
+
+          if (changed) {
+            const retryParse = toolDef.inputSchema.safeParse(coerced);
+            if (retryParse.success) {
+              parseResult = retryParse;
+            }
+          }
+        }
+
         if (!parseResult.success) {
           throw new ProviderError({
             code: 'INVALID_REQUEST',

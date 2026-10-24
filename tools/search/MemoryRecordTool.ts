@@ -7,13 +7,27 @@ import { FtsMemoryService } from '../../services/memory/FtsMemoryService.js';
 export interface MemoryRecordInput {
   type?: string;
   category?: string;
+  kind?: string;
   title?: string;
   topic?: string;
   name?: string;
-  content?: string;
-  summary?: string;
-  body?: string;
-  tags?: string[];
+  key?: string;
+  heading?: string;
+  subject?: string;
+  content?: unknown;
+  summary?: unknown;
+  body?: unknown;
+  text?: unknown;
+  description?: unknown;
+  details?: unknown;
+  note?: unknown;
+  notes?: unknown;
+  data?: unknown;
+  value?: unknown;
+  val?: unknown;
+  insight?: unknown;
+  tags?: string[] | string | unknown;
+  [key: string]: unknown;
 }
 
 export class MemoryRecordTool extends BaseTool<MemoryRecordInput, string> {
@@ -23,31 +37,47 @@ export class MemoryRecordTool extends BaseTool<MemoryRecordInput, string> {
   readonly isReadOnly = false;
   readonly isDestructive = false;
 
-  readonly inputSchema = z.object({
-    type: z
-      .string()
-      .optional()
-      .describe(
-        'Category of memory to record (e.g. decision, lesson, architecture, bug_pattern, skill, convention, gotcha, bug, research)'
-      ),
-    category: z.string().optional().describe('Alias for type'),
-    title: z.string().optional().describe('Short descriptive title summarizing the decision or insight'),
-    topic: z.string().optional().describe('Alias for title'),
-    name: z.string().optional().describe('Alias for title'),
-    content: z
-      .string()
-      .optional()
-      .describe('Detailed content, code invariant, rule, or explanation to remember permanently'),
-    summary: z.string().optional().describe('Alias for content'),
-    body: z.string().optional().describe('Alias for content'),
-    tags: z.array(z.string()).optional().describe('Optional tags for indexing'),
-  });
+  readonly inputSchema = z
+    .object({
+      type: z
+        .any()
+        .optional()
+        .describe(
+          'Category of memory to record (e.g. decision, lesson, architecture, bug_pattern, skill, convention, gotcha, bug, research)'
+        ),
+      category: z.any().optional().describe('Alias for type'),
+      kind: z.any().optional().describe('Alias for type'),
+      title: z.any().optional().describe('Short descriptive title summarizing the decision or insight'),
+      topic: z.any().optional().describe('Alias for title'),
+      name: z.any().optional().describe('Alias for title'),
+      key: z.any().optional().describe('Alias for title'),
+      heading: z.any().optional().describe('Alias for title'),
+      subject: z.any().optional().describe('Alias for title'),
+      content: z
+        .any()
+        .optional()
+        .describe('Detailed content, code invariant, rule, or explanation to remember permanently'),
+      summary: z.any().optional().describe('Alias for content'),
+      body: z.any().optional().describe('Alias for content'),
+      text: z.any().optional().describe('Alias for content'),
+      description: z.any().optional().describe('Alias for content'),
+      details: z.any().optional().describe('Alias for content'),
+      note: z.any().optional().describe('Alias for content'),
+      notes: z.any().optional().describe('Alias for content'),
+      data: z.any().optional().describe('Alias for content'),
+      value: z.any().optional().describe('Alias for content'),
+      val: z.any().optional().describe('Alias for content'),
+      insight: z.any().optional().describe('Alias for content'),
+      tags: z.union([z.array(z.any()), z.string(), z.number()]).optional().describe('Optional tags for indexing'),
+    })
+    .passthrough();
 
   async execute(args: MemoryRecordInput, context: ToolExecutionContext): Promise<string> {
     const projectId = path.basename(context.cwd) || 'default-project';
 
     // Normalize type with resilient fallback
-    const rawType = (args.type || args.category || 'decision').toLowerCase();
+    const rawTypeVal = args.type ?? args.category ?? args.kind ?? 'decision';
+    const rawType = String(rawTypeVal).toLowerCase();
     let normType: 'decision' | 'lesson' | 'architecture' | 'bug_pattern' | 'skill' = 'decision';
     if (rawType.includes('bug') || rawType.includes('defect') || rawType.includes('fix')) {
       normType = 'bug_pattern';
@@ -67,8 +97,38 @@ export class MemoryRecordTool extends BaseTool<MemoryRecordInput, string> {
       normType = 'decision';
     }
 
-    const title = (args.title || args.topic || args.name || args.summary || 'Unspecified Memory Item').trim();
-    const content = (args.content || args.body || args.summary || title).trim();
+    const rawTitle =
+      args.title ??
+      args.topic ??
+      args.name ??
+      args.key ??
+      args.heading ??
+      args.subject ??
+      args.summary ??
+      'Unspecified Memory Item';
+    const title = (
+      typeof rawTitle === 'object' && rawTitle !== null ? JSON.stringify(rawTitle) : String(rawTitle)
+    ).trim();
+
+    const rawContent =
+      args.content ??
+      args.body ??
+      args.text ??
+      args.description ??
+      args.details ??
+      args.note ??
+      args.notes ??
+      args.data ??
+      args.value ??
+      args.val ??
+      args.insight ??
+      args.summary ??
+      title;
+    const content = (
+      typeof rawContent === 'object' && rawContent !== null
+        ? JSON.stringify(rawContent, null, 2)
+        : String(rawContent)
+    ).trim();
 
     const recorded = FtsMemoryService.recordMemory({
       projectId,

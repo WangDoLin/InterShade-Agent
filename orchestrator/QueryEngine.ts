@@ -1221,10 +1221,16 @@ export class QueryEngine extends EventEmitter {
         }
 
         if (streamError) {
-          const formattedErr = this.formatProviderError(streamError);
-          assistantContent = assistantContent
-            ? `${assistantContent}\n\n[Warning: Stream interrupted - ${formattedErr}]`
-            : formattedErr;
+          const isToolSchemaMismatch =
+            streamError.includes('INVALID_TOOL_ARGUMENTS') ||
+            streamError.includes('REJECT_UNREGISTERED_TOOL') ||
+            streamError.includes('REJECT_TOOL_PAYLOAD_TOO_LARGE');
+          if (!isToolSchemaMismatch) {
+            const formattedErr = this.formatProviderError(streamError);
+            assistantContent = assistantContent
+              ? `${assistantContent}\n\n[Warning: Stream interrupted - ${formattedErr}]`
+              : formattedErr;
+          }
         } else if (!assistantContent && pendingToolCalls.length === 0) {
           if (assistantThought && assistantThought.trim().length > 0) {
             assistantContent = assistantThought;
@@ -1301,6 +1307,8 @@ export class QueryEngine extends EventEmitter {
             isPlanModeActive: this.sessionConfig.permissionMode === 'plan',
             permissionMode: this.sessionConfig.permissionMode,
             recentMessages: this.messages,
+            sessionId: this.sessionState.id,
+            autoMaxMode: this.sessionConfig.autoMaxMode,
           });
 
           if (continuationDecision.shouldContinue && continuationDecision.nudgePrompt) {

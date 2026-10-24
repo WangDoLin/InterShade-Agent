@@ -576,6 +576,7 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
             sessionState: {
               ...sessionState,
               maxTurns: targetEngine.getMaxTurns(),
+              queryEngine: targetEngine,
             } as unknown as Record<string, unknown>,
             args: parsedCmd.args,
           };

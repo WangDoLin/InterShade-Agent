@@ -4,25 +4,45 @@ import type { ToolExecutionContext } from '../../types/index.js';
 import { TaskManager } from '../../state/TaskManager.js';
 import type { TaskItem } from '../../tasks/TaskGraph.js';
 
-const TaskInputSchema = z.object({
-  action: z
-    .enum(['create', 'update', 'list', 'get', 'delete'])
-    .describe('Action to perform on the session task checklist'),
-  taskId: z.string().optional().describe('Task ID required for update, get, or delete actions'),
-  subject: z.string().optional().describe('Brief title for the task (required when action="create")'),
-  description: z.string().optional().describe('Details of what needs to be done'),
-  status: z
-    .enum(['pending', 'in_progress', 'completed'])
-    .optional()
-    .describe('New status for the task (for action="update")'),
-  activeForm: z
-    .string()
-    .optional()
-    .describe('Present continuous verb shown in UI spinner when in_progress, e.g. "Running unit tests"'),
-  blocks: z.array(z.string()).optional().describe('IDs of tasks that cannot start until this task is completed'),
-  blockedBy: z.array(z.string()).optional().describe('IDs of tasks that must complete before this task can start'),
-  metadata: z.record(z.string(), z.unknown()).optional().describe('Optional key-value metadata to attach to the task'),
-});
+const TaskInputSchema = z
+  .object({
+    action: z
+      .enum(['create', 'update', 'list', 'get', 'delete'])
+      .describe('Action to perform on the session task checklist'),
+    taskId: z
+      .union([z.string(), z.number()])
+      .optional()
+      .transform((v) => (v !== undefined ? String(v) : undefined))
+      .describe('Task ID required for update, get, or delete actions'),
+    id: z
+      .union([z.string(), z.number()])
+      .optional()
+      .transform((v) => (v !== undefined ? String(v) : undefined))
+      .describe('Alias for taskId'),
+    subject: z.string().optional().describe('Brief title for the task (required when action="create")'),
+    title: z.string().optional().describe('Alias for subject'),
+    description: z.string().optional().describe('Details of what needs to be done'),
+    status: z
+      .enum(['pending', 'in_progress', 'completed'])
+      .optional()
+      .describe('New status for the task (for action="update")'),
+    activeForm: z
+      .string()
+      .optional()
+      .describe('Present continuous verb shown in UI spinner when in_progress, e.g. "Running unit tests"'),
+    blocks: z
+      .union([z.array(z.union([z.string(), z.number()])), z.string(), z.number()])
+      .optional()
+      .transform((v) => (Array.isArray(v) ? v.map(String) : v !== undefined ? [String(v)] : undefined))
+      .describe('IDs of tasks that cannot start until this task is completed'),
+    blockedBy: z
+      .union([z.array(z.union([z.string(), z.number()])), z.string(), z.number()])
+      .optional()
+      .transform((v) => (Array.isArray(v) ? v.map(String) : v !== undefined ? [String(v)] : undefined))
+      .describe('IDs of tasks that must complete before this task can start'),
+    metadata: z.record(z.string(), z.unknown()).optional().describe('Optional key-value metadata to attach to the task'),
+  })
+  .passthrough();
 
 type TaskInput = z.infer<typeof TaskInputSchema>;
 
@@ -37,18 +57,37 @@ export class TaskTool extends BaseTool<TaskInput, string> {
 
   async execute(args: TaskInput, context: ToolExecutionContext): Promise<string> {
     const sessionId = context.sessionId;
+    const rawTaskId = args.taskId ?? (args as Record<string, unknown>).id;
+    const effectiveTaskId = rawTaskId !== undefined && rawTaskId !== null ? String(rawTaskId) : undefined;
+
+    const rawSubject = args.subject ?? (args as Record<string, unknown>).title;
+    const effectiveSubject = rawSubject !== undefined && rawSubject !== null ? String(rawSubject) : undefined;
+
+    const rawBlocks = args.blocks ?? (args as Record<string, unknown>).dependsOn;
+    const effectiveBlocks = Array.isArray(rawBlocks)
+      ? rawBlocks.map(String)
+      : rawBlocks !== undefined && rawBlocks !== null
+      ? [String(rawBlocks)]
+      : undefined;
+
+    const rawBlockedBy = args.blockedBy;
+    const effectiveBlockedBy = Array.isArray(rawBlockedBy)
+      ? rawBlockedBy.map(String)
+      : rawBlockedBy !== undefined && rawBlockedBy !== null
+      ? [String(rawBlockedBy)]
+      : undefined;
 
     switch (args.action) {
       case 'create': {
-        if (!args.subject) {
+        if (!effectiveSubject) {
           throw new Error('Field "subject" is required when action="create".');
         }
         const created = TaskManager.createTask(sessionId, {
-          subject: args.subject,
-          description: args.description || args.subject,
+          subject: effectiveSubject,
+          description: args.description || effectiveSubject,
           activeForm: args.activeForm,
-          blocks: args.blocks,
-          blockedBy: args.blockedBy,
+          blocks: effectiveBlocks,
+          blockedBy: effectiveBlockedBy,
           metadata: args.metadata,
         });
 
@@ -60,19 +99,19 @@ export class TaskTool extends BaseTool<TaskInput, string> {
       }
 
       case 'update': {
-        if (!args.taskId) {
+        if (!effectiveTaskId) {
           throw new Error('Field "taskId" is required when action="update".');
         }
         const updates: Partial<Parameters<typeof TaskManager.updateTask>[2]> = {};
-        if (args.subject !== undefined) updates.subject = args.subject;
+        if (effectiveSubject !== undefined) updates.subject = effectiveSubject;
         if (args.description !== undefined) updates.description = args.description;
         if (args.status !== undefined) updates.status = args.status;
         if (args.activeForm !== undefined) updates.activeForm = args.activeForm;
-        if (args.blocks !== undefined) updates.blocks = args.blocks;
-        if (args.blockedBy !== undefined) updates.blockedBy = args.blockedBy;
+        if (effectiveBlocks !== undefined) updates.blocks = effectiveBlocks;
+        if (effectiveBlockedBy !== undefined) updates.blockedBy = effectiveBlockedBy;
         if (args.metadata !== undefined) updates.metadata = args.metadata;
 
-        const updated = TaskManager.updateTask(sessionId, args.taskId, updates);
+        const updated = TaskManager.updateTask(sessionId, effectiveTaskId, updates);
 
         if (context.onProgress) {
           context.onProgress(`Updated task #${updated.id} status to ${updated.status}`);
@@ -86,22 +125,22 @@ export class TaskTool extends BaseTool<TaskInput, string> {
       }
 
       case 'get': {
-        if (!args.taskId) {
+        if (!effectiveTaskId) {
           throw new Error('Field "taskId" is required when action="get".');
         }
-        const task = TaskManager.getTask(sessionId, args.taskId);
+        const task = TaskManager.getTask(sessionId, effectiveTaskId);
         if (!task) {
-          return `Task #${args.taskId} not found.`;
+          return `Task #${effectiveTaskId} not found.`;
         }
         return JSON.stringify(task, null, 2);
       }
 
       case 'delete': {
-        if (!args.taskId) {
+        if (!effectiveTaskId) {
           throw new Error('Field "taskId" is required when action="delete".');
         }
-        TaskManager.deleteTask(sessionId, args.taskId);
-        return this.formatTaskListResult(sessionId, `Deleted Task #${args.taskId}`);
+        TaskManager.deleteTask(sessionId, effectiveTaskId);
+        return this.formatTaskListResult(sessionId, `Deleted Task #${effectiveTaskId}`);
       }
 
       default:

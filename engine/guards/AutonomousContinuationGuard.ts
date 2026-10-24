@@ -1,9 +1,11 @@
 import type { UnifiedMessage } from '../../types/index.js';
+import { TaskManager } from '../../state/TaskManager.js';
 
 export type ContinuationReason =
   | 'FORWARD_INTENT'
   | 'UNEXECUTED_CODE_BLOCK'
   | 'INCOMPLETE_PLAN_STEPS'
+  | 'PENDING_ROADMAP_TASKS'
   | 'TRUNCATED_MAX_TOKENS'
   | 'INCOMPLETE_TOOL_ERROR_RECOVERY'
   | 'EMPTY_RESPONSE_RETRY'
@@ -19,6 +21,8 @@ export interface ContinuationEvaluationParams {
   isPlanModeActive?: boolean;
   permissionMode?: string;
   recentMessages?: UnifiedMessage[];
+  sessionId?: string;
+  autoMaxMode?: boolean;
 }
 
 export interface ContinuationDecision {
@@ -86,7 +90,10 @@ export class AutonomousContinuationGuard {
       return { shouldContinue: false, reason: 'NONE', consecutiveNudges: 0 };
     }
 
-    if (this.consecutiveNudges >= this.maxConsecutiveNudges) {
+    const effectiveMaxNudges =
+      params.autoMaxMode || params.permissionMode === 'auto' ? 4 : this.maxConsecutiveNudges;
+
+    if (this.consecutiveNudges >= effectiveMaxNudges) {
       return { shouldContinue: false, reason: 'NONE', consecutiveNudges: this.consecutiveNudges };
     }
 
@@ -119,6 +126,29 @@ export class AutonomousContinuationGuard {
     // MUST NOT force tool execution or autonomous continuation!
     if (this.isUserInformationalQuery(params.recentMessages)) {
       return { shouldContinue: false, reason: 'NONE', consecutiveNudges: this.consecutiveNudges };
+    }
+
+    // 4c. Roadmap Tasks In-Progress Protection:
+    // If TaskManager has pending or in_progress tasks for this session, the workflow is actively in-flight!
+    // Even if the assistant formulated a subtask summary or said "đã hoàn thành bước 1", the overall mission
+    // is NOT complete. Autonomously nudge the agent directly to the next pending task.
+    if (params.sessionId && !params.isPlanModeActive) {
+      try {
+        const tasks = TaskManager.listTasks(params.sessionId);
+        const incompleteTasks = tasks.filter((t) => t.status === 'pending' || t.status === 'in_progress');
+        if (incompleteTasks.length > 0) {
+          const nextTask = incompleteTasks[0];
+          this.consecutiveNudges++;
+          return {
+            shouldContinue: true,
+            reason: 'PENDING_ROADMAP_TASKS',
+            consecutiveNudges: this.consecutiveNudges,
+            nudgePrompt: `[AUTONOMOUS ROADMAP CONTINUATION]: Nhiệm vụ #${nextTask.id} ("${nextTask.subject}") đang ở trạng thái [${nextTask.status.toUpperCase()}]. Vẫn còn ${incompleteTasks.length} nhiệm vụ chưa hoàn tất trong lộ trình công việc.\n\nMô tả nhiệm vụ tiếp theo:\n${nextTask.description || nextTask.subject}\n\nHãy tiếp tục tự động thực hiện ngay nhiệm vụ #${nextTask.id} bằng các công cụ phù hợp (file_read, file_edit, file_write, run_shell_command,...). Tuyệt đối không dừng lại giữa chừng và không chờ người dùng ra lệnh lại.`,
+          };
+        }
+      } catch {
+        // Fallback gracefully if database or session is not accessible
+      }
     }
 
     // 5. Skip continuation if assistant explicitly marked completion
