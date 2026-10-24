@@ -46,11 +46,19 @@ export class TaskGraph {
       throw new Error(`Task with id "${id}" does not exist.`);
     }
 
+    // Strip explicit undefined values so partial updates do not overwrite existing valid properties
+    const cleanUpdates: Partial<Omit<TaskItem, 'id' | 'createdAt'>> = {};
+    for (const [key, val] of Object.entries(updates)) {
+      if (val !== undefined) {
+        (cleanUpdates as any)[key] = val;
+      }
+    }
+
     const updated: TaskItem = {
       ...existing,
-      ...updates,
-      blocks: Array.isArray(updates.blocks) ? updates.blocks : (Array.isArray(existing.blocks) ? existing.blocks : []),
-      blockedBy: Array.isArray(updates.blockedBy) ? updates.blockedBy : (Array.isArray(existing.blockedBy) ? existing.blockedBy : []),
+      ...cleanUpdates,
+      blocks: Array.isArray(cleanUpdates.blocks) ? cleanUpdates.blocks : (Array.isArray(existing.blocks) ? existing.blocks : []),
+      blockedBy: Array.isArray(cleanUpdates.blockedBy) ? cleanUpdates.blockedBy : (Array.isArray(existing.blockedBy) ? existing.blockedBy : []),
       updatedAt: Date.now(),
     };
 

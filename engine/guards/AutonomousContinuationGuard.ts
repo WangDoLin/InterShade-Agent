@@ -45,9 +45,9 @@ const INTENT_PATTERNS_EN: RegExp[] = [
 ];
 
 const COMPLETION_PATTERNS: RegExp[] = [
-  /^(?:đã hoàn thành|hoàn tất|tất cả thay đổi đã xong|tất cả các bước đã hoàn tất)/i,
-  /\b(?:task completed?|all changes have been made|all tests passed|everything is complete|successfully finished)\b/i,
-  /\b(?:here is the explanation|hope this helps|giải thích chi tiết|kết luận:)\b/i,
+  /^(?:đã hoàn thành|hoàn tất|tất cả thay đổi đã xong|tất cả các bước đã hoàn tất|tổng kết|tóm lại|như vậy|kết luận)/i,
+  /\b(?:task completed?|all changes have been made|all tests passed|everything is complete|successfully finished|walkthrough|summary)\b/i,
+  /\b(?:here is the explanation|hope this helps|giải thích chi tiết|kết luận:|tổng kết:|đã khắc phục triệt để|đã giải quyết xong)\b/i,
 ];
 
 /**

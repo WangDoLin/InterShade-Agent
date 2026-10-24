@@ -135,9 +135,64 @@ async function runTests() {
   assert.strictEqual(remainingAfterPrune[0].id, '2');
   console.log('  [PASS] Completed tasks successfully disappeared after clear completed.');
 
+  // 7. Test TaskTool partial update with only status (SQLite parameter binding hardening)
+  console.log('\n7. Testing TaskTool update with partial fields (no SQLite parameter binding errors)...');
+  const { TaskTool } = await import('../tools/task/TaskTool.js');
+  const taskTool = new TaskTool();
+  const partialSessionId = `test-partial-${randomUUID()}`;
+  SessionStore.createSession({
+    sessionId: partialSessionId,
+    cwd: process.cwd(),
+    model: 'test',
+    provider: 'test',
+    maxTokens: 4096,
+    permissionMode: 'default',
+  });
+
+  const createdTask = TaskManager.createTask(partialSessionId, {
+    subject: 'Initial partial update test subject',
+    description: 'Initial description',
+  });
+
+  // Updating only status should succeed and preserve subject/description without throwing parameter binding error
+  const statusOnlyUpdate = await taskTool.execute(
+    {
+      action: 'update',
+      taskId: createdTask.id,
+      status: 'completed',
+    },
+    { sessionId: partialSessionId } as any
+  );
+  assert.ok(statusOnlyUpdate.includes('[x]'));
+  assert.ok(statusOnlyUpdate.includes('Initial partial update test subject'));
+  assert.ok(statusOnlyUpdate.includes('[All Tasks Completed]'));
+
+  const reloadedTask = TaskManager.getTask(partialSessionId, createdTask.id);
+  assert.strictEqual(reloadedTask?.status, 'completed');
+  assert.strictEqual(reloadedTask?.subject, 'Initial partial update test subject');
+  assert.strictEqual(reloadedTask?.description, 'Initial description');
+
+  // Updating only subject should preserve status and description
+  const subjectOnlyUpdate = await taskTool.execute(
+    {
+      action: 'update',
+      taskId: createdTask.id,
+      subject: 'Updated subject title',
+    },
+    { sessionId: partialSessionId } as any
+  );
+  assert.ok(subjectOnlyUpdate.includes('Updated subject title'));
+  const reloadedTask2 = TaskManager.getTask(partialSessionId, createdTask.id);
+  assert.strictEqual(reloadedTask2?.subject, 'Updated subject title');
+  assert.strictEqual(reloadedTask2?.status, 'completed');
+  assert.strictEqual(reloadedTask2?.description, 'Initial description');
+
+  console.log('  [PASS] TaskTool partial updates succeed cleanly with parameter binding hardening.');
+
   // Cleanup
   TaskManager.clearAllTasks(testSessionId);
   TaskManager.clearAllTasks(planSessionId);
+  TaskManager.clearAllTasks(partialSessionId);
   PlanManager.clearPlan(planSessionId);
 
   console.log('\n=== ALL TASK MANAGER TESTS PASSED SUCCESSFULLY! [100%] ===');

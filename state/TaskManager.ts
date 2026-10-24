@@ -79,16 +79,16 @@ export class TaskManager {
 
     stmt.run(
       task.id,
-      sessionId,
-      task.subject,
-      task.description,
-      task.status,
-      task.activeForm || null,
-      JSON.stringify(task.blocks),
-      JSON.stringify(task.blockedBy),
+      sessionId ?? '',
+      task.subject ?? '',
+      task.description ?? '',
+      task.status ?? 'pending',
+      task.activeForm ?? null,
+      JSON.stringify(task.blocks ?? []),
+      JSON.stringify(task.blockedBy ?? []),
       task.metadata ? JSON.stringify(task.metadata) : null,
-      task.createdAt,
-      task.updatedAt
+      task.createdAt ?? now,
+      task.updatedAt ?? now
     );
 
     taskEvents.emit('change', sessionId);
@@ -137,16 +137,16 @@ export class TaskManager {
 
     stmt.run(
       task.id,
-      sessionId,
-      task.subject,
-      task.description,
-      task.status,
-      task.activeForm || null,
-      JSON.stringify(task.blocks),
-      JSON.stringify(task.blockedBy),
+      sessionId ?? '',
+      task.subject ?? '',
+      task.description ?? '',
+      task.status ?? 'pending',
+      task.activeForm ?? null,
+      JSON.stringify(task.blocks ?? []),
+      JSON.stringify(task.blockedBy ?? []),
       task.metadata ? JSON.stringify(task.metadata) : null,
-      task.createdAt,
-      task.updatedAt
+      task.createdAt ?? now,
+      task.updatedAt ?? now
     );
 
     taskEvents.emit('change', sessionId);
@@ -177,16 +177,16 @@ export class TaskManager {
     `);
 
     stmt.run(
-      updated.subject,
-      updated.description,
-      updated.status,
-      updated.activeForm || null,
-      JSON.stringify(updated.blocks),
-      JSON.stringify(updated.blockedBy),
+      updated.subject ?? existing.subject ?? '',
+      updated.description ?? existing.description ?? '',
+      updated.status ?? existing.status ?? 'pending',
+      updated.activeForm ?? existing.activeForm ?? null,
+      JSON.stringify(updated.blocks ?? []),
+      JSON.stringify(updated.blockedBy ?? []),
       updated.metadata ? JSON.stringify(updated.metadata) : null,
-      updated.updatedAt,
-      taskId,
-      sessionId
+      updated.updatedAt ?? Date.now(),
+      taskId ?? '',
+      sessionId ?? ''
     );
 
     taskEvents.emit('change', sessionId);
@@ -196,7 +196,7 @@ export class TaskManager {
   static getTask(sessionId: string, taskId: string): TaskItem | null {
     const db = getDatabase();
     const stmt = db.prepare('SELECT * FROM tasks WHERE id = ? AND session_id = ?');
-    const row = stmt.get(taskId, sessionId) as any;
+    const row = stmt.get(taskId ?? '', sessionId ?? '') as any;
     if (!row) {
       return null;
     }
@@ -206,7 +206,7 @@ export class TaskManager {
   static listTasks(sessionId: string): TaskItem[] {
     const db = getDatabase();
     const stmt = db.prepare('SELECT * FROM tasks WHERE session_id = ? ORDER BY created_at ASC');
-    const rows = stmt.all(sessionId) as any[];
+    const rows = stmt.all(sessionId ?? '') as any[];
     return rows.map(r => this.rowToTask(r)).sort((a, b) => {
       const idA = parseInt(a.id, 10);
       const idB = parseInt(b.id, 10);
@@ -218,7 +218,7 @@ export class TaskManager {
   static deleteTask(sessionId: string, taskId: string): boolean {
     const db = getDatabase();
     const stmt = db.prepare('DELETE FROM tasks WHERE id = ? AND session_id = ?');
-    stmt.run(taskId, sessionId);
+    stmt.run(taskId ?? '', sessionId ?? '');
     taskEvents.emit('change', sessionId);
     return true;
   }
@@ -226,7 +226,7 @@ export class TaskManager {
   static clearCompletedTasks(sessionId: string): number {
     const db = getDatabase();
     const stmt = db.prepare('DELETE FROM tasks WHERE session_id = ? AND status = ?');
-    const res = stmt.run(sessionId, 'completed');
+    const res = stmt.run(sessionId ?? '', 'completed');
     taskEvents.emit('change', sessionId);
     return res.changes;
   }
@@ -234,7 +234,7 @@ export class TaskManager {
   static clearAllTasks(sessionId: string): number {
     const db = getDatabase();
     const stmt = db.prepare('DELETE FROM tasks WHERE session_id = ?');
-    const res = stmt.run(sessionId);
+    const res = stmt.run(sessionId ?? '');
     taskEvents.emit('change', sessionId);
     return res.changes;
   }

@@ -63,15 +63,16 @@ export class TaskTool extends BaseTool<TaskInput, string> {
         if (!args.taskId) {
           throw new Error('Field "taskId" is required when action="update".');
         }
-        const updated = TaskManager.updateTask(sessionId, args.taskId, {
-          subject: args.subject,
-          description: args.description,
-          status: args.status,
-          activeForm: args.activeForm,
-          blocks: args.blocks,
-          blockedBy: args.blockedBy,
-          metadata: args.metadata,
-        });
+        const updates: Partial<Parameters<typeof TaskManager.updateTask>[2]> = {};
+        if (args.subject !== undefined) updates.subject = args.subject;
+        if (args.description !== undefined) updates.description = args.description;
+        if (args.status !== undefined) updates.status = args.status;
+        if (args.activeForm !== undefined) updates.activeForm = args.activeForm;
+        if (args.blocks !== undefined) updates.blocks = args.blocks;
+        if (args.blockedBy !== undefined) updates.blockedBy = args.blockedBy;
+        if (args.metadata !== undefined) updates.metadata = args.metadata;
+
+        const updated = TaskManager.updateTask(sessionId, args.taskId, updates);
 
         if (context.onProgress) {
           context.onProgress(`Updated task #${updated.id} status to ${updated.status}`);
@@ -137,6 +138,12 @@ export class TaskTool extends BaseTool<TaskInput, string> {
     if (graph.isVerificationNudgeNeeded()) {
       lines.push('');
       lines.push('Please run tests or typecheck to verify that all completed changes function as intended.');
+    }
+
+    const allCompleted = tasks.length > 0 && tasks.every((t) => t.status === 'completed');
+    if (allCompleted) {
+      lines.push('');
+      lines.push('[All Tasks Completed]: Please provide a comprehensive, synthesized user-facing walkthrough of the deliverables answering the user original request.');
     }
 
     return lines.join('\n');
