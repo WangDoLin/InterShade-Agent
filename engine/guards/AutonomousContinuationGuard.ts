@@ -113,6 +113,14 @@ export class AutonomousContinuationGuard {
       return { shouldContinue: false, reason: 'NONE', consecutiveNudges: this.consecutiveNudges };
     }
 
+    // 4b. User Informational / Explanation Protection:
+    // If the user's latest query is an informational/conceptual question (e.g. "tại sao...", "giải thích...", "so sánh...", "why...", "explain..."),
+    // the assistant's response is an answer to the user's question, NOT an unfinished implementation step.
+    // MUST NOT force tool execution or autonomous continuation!
+    if (this.isUserInformationalQuery(params.recentMessages)) {
+      return { shouldContinue: false, reason: 'NONE', consecutiveNudges: this.consecutiveNudges };
+    }
+
     // 5. Skip continuation if assistant explicitly marked completion
     if (this.isExplicitlyComplete(params.assistantContent)) {
       return { shouldContinue: false, reason: 'NONE', consecutiveNudges: this.consecutiveNudges };
@@ -278,6 +286,58 @@ export class AutonomousContinuationGuard {
     return null;
   }
 
+  /**
+   * Checks if the most recent user prompt in the session was an informational / conceptual question.
+   * Informational Q&A responses must not be hijacked by autonomous coding continuation.
+   */
+  public isUserInformationalQuery(messages?: UnifiedMessage[]): boolean {
+    if (!messages || messages.length === 0) return false;
+
+    // Find the latest user message that is not a synthetic system/guard injection
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg.role === 'user') {
+        const text = msg.content.trim();
+        // Skip synthetic guard/continuation messages
+        if (
+          text.startsWith('[AUTONOMOUS CONTINUATION]') ||
+          text.startsWith('[VERIFY-ON-STOP') ||
+          text.startsWith('[MODE MAX INVARIANT')
+        ) {
+          continue;
+        }
+
+        const lower = text.toLowerCase();
+
+        // Check if user specifically requested workspace modification actions
+        const actionRequestRegex =
+          /\b(?:hãy sửa|hãy fix|hãy tạo|hãy viết code vào|hãy chạy|implement|create file|write file|fix bug|apply change|refactor|chỉnh sửa file|thêm file)\b/i;
+        if (actionRequestRegex.test(lower)) {
+          return false;
+        }
+
+        // Informational question patterns (Vietnamese & English)
+        const informationalPatternsVi = [
+          /^(?:tại sao|vì sao|sao|tại vì sao|tại sao lại)\b/i,
+          /\b(?:tại sao|vì sao|sao lại|liệu có|có phải|có nên|có tối ưu hơn)\b/i,
+          /\b(?:là gì|thế nào|như thế nào|ra sao|có nghĩa là gì)\b/i,
+          /\b(?:giải thích|so sánh|khác nhau thế nào|khác gì|phân tích|cho biết|tìm hiểu|tổng quan)\b/i,
+          /\?$/
+        ];
+
+        const informationalPatternsEn = [
+          /^(?:why|what|how|can you explain|explain|compare|tell me about)\b/i,
+          /\b(?:why is|why does|what is|what are|how does|how do|difference between|is it better|should i)\b/i,
+          /\?$/
+        ];
+
+        return [...informationalPatternsVi, ...informationalPatternsEn].some((pat) => pat.test(lower));
+      }
+    }
+
+    return false;
+  }
+
   private detectUnexecutedCodeBlock(content?: string): string | null {
     if (!content || this.isWaitingForUser(content)) return null;
 
@@ -287,9 +347,10 @@ export class AutonomousContinuationGuard {
     if (!match) return null;
 
     // Try to extract mentioned file path if present (e.g., "in file src/App.tsx", "file: index.ts")
+    // Only return if an explicit file path is identified; illustrative examples must return null
     const fileHintRegex = /(?:file|trong file|tệp|đường dẫn|path)[:\s]+`?([a-zA-Z0-9_./\\-]+\.[a-zA-Z0-9]+)`?/i;
     const fileMatch = content.match(fileHintRegex);
-    return fileMatch ? fileMatch[1] : 'the target file';
+    return fileMatch ? fileMatch[1] : null;
   }
 
   private detectUnfinishedPlan(content?: string, isPlanMode?: boolean): boolean {
@@ -299,18 +360,26 @@ export class AutonomousContinuationGuard {
 
     const lower = content.toLowerCase();
 
+    // MUST have an explicit implementation plan header declaration
     const hasPlanHeader =
-      lower.includes('kế hoạch') ||
+      lower.includes('kế hoạch triển khai') ||
+      lower.includes('kế hoạch thực hiện') ||
+      lower.includes('kế hoạch chi tiết') ||
       lower.includes('implementation plan') ||
       lower.includes('action plan') ||
-      lower.includes('các bước thực hiện') ||
-      lower.includes('steps to');
+      lower.includes('các bước thực hiện:') ||
+      lower.includes('steps to implement:');
 
+    if (!hasPlanHeader) {
+      return false;
+    }
+
+    // AND must have explicit action step indicators (e.g. Bước 1:, Step 1:)
     const hasSteps =
-      /(?:bước 1|step 1|1\.\s+)/i.test(content) &&
-      /(?:bước 2|step 2|2\.\s+)/i.test(content);
+      /(?:bước 1[:\s-]|step 1[:\s-]|#step-1)/i.test(content) &&
+      /(?:bước 2[:\s-]|step 2[:\s-]|#step-2)/i.test(content);
 
-    return !!(hasPlanHeader || hasSteps);
+    return hasSteps;
   }
 
   private isTextTruncated(content?: string): boolean {

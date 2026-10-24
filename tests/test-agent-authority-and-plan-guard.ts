@@ -104,8 +104,47 @@ async function runAuthorityTests() {
   assert.strictEqual(modifyingTurnResult.shouldBlock, true, 'Blocks turn where code files were actually modified without verification');
   console.log('  ✔ VerifyOnStopGuard correctly distinguishes conversational turns from modification turns.');
 
+  // 7. Informational Q&A Protection: User asks "tại sao...", assistant answers with numbered points -> MUST NOT trigger continuation
+  console.log('\n[Test 7] Informational Q&A Protection: Conceptual question must not trigger autonomous continuation');
+  const informationalUserMsg = {
+    id: 'user-q1',
+    role: 'user' as const,
+    content: 'tại sao mã nguồn được viết bởi typescript liệu có tối ưu hơn c++ ?',
+    timestamp: Date.now(),
+  };
+
+  const informationalAnswer = `
+TypeScript không bao giờ tối ưu hơn C++ về hiệu năng thực thi.
+1. Trường hợp phổ biến: Xây dựng Trình thông dịch (Interpreter)
+C++ chạy trực tiếp mã máy, còn TypeScript chạy qua máy ảo V8.
+2. Trường hợp ngoại lệ: Trình biên dịch (Compiler)
+Biên dịch AOT tạo binary ngang ngửa.
+Dưới đây là ví dụ minh họa:
+\`\`\`typescript
+function benchmark() { return 42; }
+\`\`\`
+`;
+
+  const informationalResult = guard.evaluateTurn({
+    assistantContent: informationalAnswer,
+    pendingToolCallsCount: 0,
+    lastToolTurnHadError: false,
+    modifiedFilesCount: 0,
+    isProofModeActive: false,
+    isPlanModeActive: false,
+    recentMessages: [informationalUserMsg],
+  });
+
+  assert.strictEqual(
+    informationalResult.shouldContinue,
+    false,
+    'Informational explanation with numbered points and illustrative code block must NOT trigger continuation'
+  );
+  assert.strictEqual(informationalResult.reason, 'NONE');
+  console.log('  ✔ Informational Q&A is cleanly delivered to user without autonomous tool hijacking.');
+
   console.log('\n===============================================================');
-  console.log('🎉 ALL AGENT AUTHORITY & PLAN GUARD TESTS PASSED (6/6 PASS)');
+  console.log('🎉 ALL AGENT AUTHORITY & PLAN GUARD TESTS PASSED (7/7 PASS)');
   console.log('===============================================================\n');
 }
 
