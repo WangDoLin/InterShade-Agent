@@ -38,6 +38,12 @@ export class ContextMicroCompactor {
     this.autoCompactThreshold = options.autoCompactThreshold ?? 0.70;
   }
 
+  public setMaxContextTokens(maxTokens: number): void {
+    if (maxTokens > 0) {
+      this.maxContextTokens = maxTokens;
+    }
+  }
+
   /**
    * Optimize the conversation message list before dispatching to the provider API.
    * Runs micro-compaction on tool results first, and if tokens exceed threshold,

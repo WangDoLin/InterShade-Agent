@@ -173,7 +173,7 @@ export class AutoMaxEngine extends EventEmitter {
       const modifiedFiles = this.getModifiedFiles(cwd, runner);
       this.activeStatus.modifiedFilesCount = modifiedFiles.length;
 
-      const preflightTsc = VerificationGate.verifyTypeScript(cwd, runner);
+      const preflightTsc = await VerificationGate.verifyTypeScriptAsync(cwd, runner);
       const tasks = TaskManager.listTasks(sessionId);
       const pendingTasks = tasks.filter((t) => t.status !== 'completed');
 
@@ -213,6 +213,12 @@ export class AutoMaxEngine extends EventEmitter {
           executorResponse = await options.executor(autonomousPrompt, { sessionId, cwd });
         } catch (execErr: any) {
           executorResponse = `[Execution Exception]: ${execErr.message}`;
+          this.notifyProgress(
+            options.onProgress,
+            iteration,
+            'executing',
+            `Execution error: ${execErr.message}`
+          );
         }
       } else {
         // Fallback execution when no external LLM query engine is wired (e.g. headless unit testing)
@@ -226,7 +232,7 @@ export class AutoMaxEngine extends EventEmitter {
       this.activeStatus.currentPhase = 'verifying';
       this.notifyProgress(options.onProgress, iteration, 'verifying', `Iteration #${iteration}: Running verification gate and invariant fuzz checks...`);
 
-      const postTsc = VerificationGate.verifyTypeScript(cwd, runner);
+      const postTsc = await VerificationGate.verifyTypeScriptAsync(cwd, runner);
       const verificationPassed = postTsc.passed;
       this.activeStatus.lastVerificationPassed = verificationPassed;
 

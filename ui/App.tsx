@@ -28,6 +28,7 @@ import type { UnifiedMessage, PermissionRequest, UserQuestionRequest } from '../
 import { i18n, t } from '../services/i18n/index.js';
 import { SUPPORTED_LOCALES } from '../services/i18n/types.js';
 import { CommandRegistry, registerBuiltinCommands } from '../cli/commands/index.js';
+import { parseAutoMaxArgs, getSharedAutoMaxEngine } from '../cli/commands/autoMaxCommand.js';
 import { useTerminalViewport } from './hooks/useTerminalViewport.js';
 import { useMultiSessionTabs } from './hooks/useMultiSessionTabs.js';
 import { useQueryEngineBridge } from './hooks/useQueryEngineBridge.js';
@@ -551,6 +552,283 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
         setProgressText(null);
       }
       return;
+    }
+
+    // 6b. AutoMax Mode (/automax, /auto-max, /evolve)
+    if (
+      prompt === '/automax' ||
+      prompt.startsWith('/automax ') ||
+      prompt === '/auto-max' ||
+      prompt.startsWith('/auto-max ') ||
+      prompt === '/evolve' ||
+      prompt.startsWith('/evolve ') ||
+      prompt === 'automax' ||
+      prompt.startsWith('automax ') ||
+      prompt === 'auto-max' ||
+      prompt.startsWith('auto-max ') ||
+      prompt === 'evolve' ||
+      prompt.startsWith('evolve ')
+    ) {
+      const userCmdMsg: UnifiedMessage = {
+        id: randomUUID(),
+        role: 'user',
+        content: prompt,
+        timestamp: Date.now(),
+      };
+      activeEngine.appendSyntheticMessage(userCmdMsg);
+
+      const rawRest = prompt.replace(/^(\/)?(automax|auto-max|evolve)\s*/i, '').trim();
+      const parts = rawRest.length > 0 ? rawRest.split(/\s+/) : [];
+      const sub = (parts[0] || '').toLowerCase();
+
+      // Case A: /automax off / disable / stop
+      if (sub === 'off' || sub === 'disable' || sub === 'stop') {
+        activeEngine.setAutoMaxMode(false);
+        activeEngine.setMaxingMode(false, 2048);
+        activeEngine.setPermissionMode('default');
+        activeEngine.updateMaxTurns(100);
+        const engine = getSharedAutoMaxEngine();
+        if (engine.isActive()) {
+          engine.stop();
+        }
+        setSessionState((prev: any) => ({
+          ...prev,
+          autoMaxMode: false,
+          maxingMode: false,
+          permissionMode: 'default',
+          maxTurns: 100,
+          thinkingBudget: 2048,
+          autoMaxConfig: undefined,
+        }));
+        const noticeMsg: UnifiedMessage = {
+          id: randomUUID(),
+          role: 'assistant',
+          content: '🛑 [MODE AUTOMAX: DISABLED]\n- Reverted to standard interactive mode and single-turn token budget.\n- Permission mode restored to "default".',
+          timestamp: Date.now() + 1,
+        };
+        activeEngine.appendSyntheticMessage(noticeMsg);
+        setMessages([...activeEngine.getMessages()]);
+        return;
+      }
+
+      // Case B: /automax status
+      if (sub === 'status') {
+        const isAutoMax = Boolean(sessionState.autoMaxMode ?? activeEngine.isAutoMaxActive());
+        const cfg = activeEngine.getAutoMaxConfig();
+        const liveStatus = getSharedAutoMaxEngine().getStatus();
+        const statusContent = [
+          `⚡ [MODE AUTOMAX STATUS]: ${isAutoMax ? '🟣 ACTIVE' : '⚪ INACTIVE'}`,
+          `- Permission Mode: ${sessionState.permissionMode || 'default'}`,
+          `- Thinking Budget: ${sessionState.thinkingBudget || (isAutoMax ? 16384 : 2048)} tokens`,
+          `- Mission Goal: ${cfg?.goal || liveStatus.goal || '(None set / Continuous Evolution)'}`,
+          `- Time Horizon: ${cfg?.durationMinutes || liveStatus.durationMinutes ? `${cfg?.durationMinutes || liveStatus.durationMinutes}m` : 'None (Goal-bounded)'}`,
+          `- Engine State: ${isAutoMax ? '🟢 READY / RUNNING' : '⚪ IDLE'}`,
+        ].join('\n');
+
+        const statusMsg: UnifiedMessage = {
+          id: randomUUID(),
+          role: 'assistant',
+          content: statusContent,
+          timestamp: Date.now() + 1,
+        };
+        activeEngine.appendSyntheticMessage(statusMsg);
+        setMessages([...activeEngine.getMessages()]);
+        return;
+      }
+
+      // Case C: /automax on [goal] [--duration <mins>] [--iterations <N>] (or toggle when currently inactive)
+      if (sub === 'on' || sub === 'enable' || sub === 'start' || (!sub && !sessionState.autoMaxMode)) {
+        const argsToParse = sub ? parts.slice(1) : [];
+        const { goal, durationMinutes, maxIterations } = parseAutoMaxArgs(argsToParse);
+        const autoMaxConfig = {
+          goal,
+          durationMinutes,
+          maxIterations,
+          thinkingBudget: 16384,
+        };
+
+        activeEngine.setAutoMaxMode(true, autoMaxConfig);
+        activeEngine.setMaxingMode(true, 16384);
+        activeEngine.setPermissionMode('auto');
+        activeEngine.updateMaxTurns(0);
+
+        setSessionState((prev: any) => ({
+          ...prev,
+          autoMaxMode: true,
+          maxingMode: true,
+          permissionMode: 'auto',
+          maxTurns: 0,
+          thinkingBudget: 16384,
+          autoMaxConfig,
+        }));
+
+        const horizonInfo = [
+          goal ? `- Mission Goal: "${goal}"` : '- Horizon: Continuous self-directed evolution',
+          durationMinutes ? `- Duration Limit: ${durationMinutes} minute(s)` : '- Duration: Goal completion bounded',
+          maxIterations ? `- Max Iterations: ${maxIterations}` : '- Max Iterations: Continuous (unconstrained)',
+        ].join('\n');
+
+        const bannerMsg: UnifiedMessage = {
+          id: randomUUID(),
+          role: 'assistant',
+          content: [
+            '⚡ [MODE AUTOMAX: ACTIVE]',
+            '- Unconstrained Deliberation: Enabled (16,384 tokens thinking).',
+            '- Full Autonomy: Active (permissionMode: "auto", zero human approval blocking).',
+            '- Whole-Repo Omniscience & Invariant Fuzz Shield: Engaged.',
+            '- Turn Ceiling: UNLIMITED (turns:∞).',
+            horizonInfo,
+            '',
+            'Agent is operating autonomously. All subsequent prompts or goals will execute from end-to-end without requiring incremental commands.',
+          ].join('\n'),
+          timestamp: Date.now() + 1,
+        };
+        activeEngine.appendSyntheticMessage(bannerMsg);
+        setMessages([...activeEngine.getMessages()]);
+        return;
+      }
+
+      // Case D: Toggle off if no args and already active
+      if (!sub && sessionState.autoMaxMode) {
+        activeEngine.setAutoMaxMode(false);
+        activeEngine.setMaxingMode(false, 2048);
+        activeEngine.setPermissionMode('default');
+        activeEngine.updateMaxTurns(100);
+        setSessionState((prev: any) => ({
+          ...prev,
+          autoMaxMode: false,
+          maxingMode: false,
+          permissionMode: 'default',
+          maxTurns: 100,
+          thinkingBudget: 2048,
+          autoMaxConfig: undefined,
+        }));
+        const offMsg: UnifiedMessage = {
+          id: randomUUID(),
+          role: 'assistant',
+          content: '🛑 [MODE AUTOMAX: DISABLED]\n- Reverted to standard interactive mode.',
+          timestamp: Date.now() + 1,
+        };
+        activeEngine.appendSyntheticMessage(offMsg);
+        setMessages([...activeEngine.getMessages()]);
+        return;
+      }
+
+      // Case E: /automax run <goal> [--duration <mins>] [--iterations <N>]
+      if (sub === 'run' || (sub !== 'on' && sub !== 'off' && sub !== 'status')) {
+        const argsToParse = sub === 'run' ? parts.slice(1) : parts;
+        const { goal, durationMinutes, maxIterations } = parseAutoMaxArgs(argsToParse);
+
+        if (!goal) {
+          const usageMsg: UnifiedMessage = {
+            id: randomUUID(),
+            role: 'assistant',
+            content: '[AUTOMAX]: Please provide a goal or objective. Usage: /automax run <goal> [--duration <mins>] [--iterations <N>]',
+            timestamp: Date.now() + 1,
+          };
+          activeEngine.appendSyntheticMessage(usageMsg);
+          setMessages([...activeEngine.getMessages()]);
+          return;
+        }
+
+        const autoMaxConfig = {
+          goal,
+          durationMinutes,
+          maxIterations,
+          thinkingBudget: 16384,
+        };
+
+        // 1. Immediately engage AutoMax on both engine and UI sessionState
+        activeEngine.setAutoMaxMode(true, autoMaxConfig);
+        activeEngine.setMaxingMode(true, 16384);
+        activeEngine.setPermissionMode('auto');
+        activeEngine.updateMaxTurns(0);
+
+        setSessionState((prev: any) => ({
+          ...prev,
+          autoMaxMode: true,
+          maxingMode: true,
+          permissionMode: 'auto',
+          maxTurns: 0,
+          thinkingBudget: 16384,
+          autoMaxConfig,
+        }));
+
+        // 2. Headroom management: compact older conversation history if bloated
+        if (activeEngine.getContextTokens() > 40000) {
+          activeEngine.compactContextIfNeeded();
+        }
+
+        // 3. Seed primary task in TaskManager if none exists
+        const existingTasks = TaskManager.listTasks(sessionState.id);
+        if (existingTasks.length === 0) {
+          TaskManager.createTask(sessionState.id, {
+            subject: `AutoMax Primary Goal: ${goal}`,
+            description: goal,
+            activeForm: 'Executing AutoMax mission',
+          });
+        }
+
+        // 4. Banner message
+        const noticeMsg: UnifiedMessage = {
+          id: randomUUID(),
+          role: 'assistant',
+          content: [
+            '⚡ [MODE AUTOMAX: RUNNING AUTONOMOUS MISSION]',
+            `- Objective: "${goal}"`,
+            durationMinutes ? `- Allocated Horizon: ${durationMinutes} minute(s)` : '- Horizon: Goal-completion bounded',
+            maxIterations ? `- Iteration Budget: ${maxIterations} cycles` : '- Iterations: Continuous autonomous loop',
+            '- Deliberation: 16,384 unconstrained thinking tokens',
+            '- Tool Execution: AUTO (zero human permission blocking)',
+            '- Turn Ceiling: UNLIMITED (turns:∞)',
+            '',
+            '🚀 Commencing autonomous discovery, implementation, verification, and self-evolution...',
+          ].join('\n'),
+          timestamp: Date.now() + 1,
+        };
+        activeEngine.appendSyntheticMessage(noticeMsg);
+        setMessages([...activeEngine.getMessages()]);
+
+        // 5. Synthesize Autonomous Mission Prompt
+        const missionPrompt = [
+          `[⚡ Mode AutoMax: Autonomous Self-Evolution Mission Active]`,
+          `Primary Objective: "${goal}"`,
+          durationMinutes ? `- Time Horizon: ~${durationMinutes} minute(s)` : '',
+          maxIterations ? `- Iteration Budget: ${maxIterations} cycles` : '',
+          '',
+          `Autonomous Directives:`,
+          `1. Inspect workspace structure, files, build configuration, tests, and diagnostics to orient yourself.`,
+          `2. Create or refine roadmap tasks using task_create to track each implementation phase.`,
+          `3. Engage unconstrained thinking (up to 16,384 tokens) to design optimal architectures and implementations.`,
+          `4. Implement changes via file_edit/file_write, compile with run_shell_command, and verify with tests and benchmarks.`,
+          `5. Self-reflect on test/benchmark output, fix regressions, and ensure all safety invariants hold.`,
+          `6. Autonomously continue to the next task in the roadmap until the objective is fully satisfied. Do not halt prematurely.`,
+        ].filter(Boolean).join('\n');
+
+        if (process.stdout.isTTY) {
+          try {
+            const shortPrompt = truncatePromptText(goal, 35);
+            process.stdout.write(`\x1b]0;InterShader [AutoMax]: ${shortPrompt}\x07`);
+          } catch {
+            // Ignore if stdout is closed
+          }
+        }
+
+        // 6. Execute through live QueryEngine with Ink streaming & spinner active!
+        setIsBusy(true);
+        isBusyRef.current = true;
+        try {
+          await activeEngine.executeUserPrompt(missionPrompt);
+        } catch (err: unknown) {
+          handleError(err);
+        } finally {
+          setIsBusy(false);
+          isBusyRef.current = false;
+          setCurrentToolName(null);
+          setProgressText(null);
+        }
+        return;
+      }
     }
 
     // 7. Check CommandRegistry for registered slash commands (PromptCommand, LocalCommand)

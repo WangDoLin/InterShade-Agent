@@ -368,9 +368,12 @@ export class QueryEngine extends EventEmitter {
       this.setMaxingMode(true, autoMaxConfig?.thinkingBudget || 16384);
       // AutoMax activates autonomous permission
       this.setPermissionMode('auto');
+      // AutoMax unconstrains max turns for continuous autonomous progression
+      this.updateMaxTurns(0);
     } else {
       this.sessionConfig.autoMaxConfig = undefined;
       this.sessionState.autoMaxConfig = undefined;
+      this.updateMaxTurns(100);
     }
     this.refreshSystemPrompt();
   }
@@ -390,6 +393,32 @@ export class QueryEngine extends EventEmitter {
   /**
    * Returns active context tokens currently in the conversation window.
    */
+  /**
+   * Compresses or prunes context if token count is elevated
+   * to ensure healthy headroom for long-horizon autonomous tasks.
+   */
+  public compactContextIfNeeded(): boolean {
+    const effectiveMax = this.getEffectiveMaxContextTokens();
+    this.contextMicroCompactor.setMaxContextTokens(effectiveMax);
+    const activePlan = PlanManager.getActivePlan(this.sessionState.id);
+    const planSummaryStr = activePlan
+      ? `${activePlan.title}:\n${activePlan.steps.map((s) => `- [${s.status || 'pending'}] ${s.title}`).join('\n')}`
+      : undefined;
+
+    const res = this.contextMicroCompactor.optimize(this.messages, {
+      activeTasksSummary: planSummaryStr,
+      recentlyTouchedFiles: this.getSessionModifiedFiles(),
+    });
+
+    if (res.wasCompacted) {
+      this.messages = res.messages;
+      this.currentContextTokens = res.newTokens;
+      this.emit('compress');
+      return true;
+    }
+    return false;
+  }
+
   getContextTokens(): number {
     if (this.currentContextTokens > 0) {
       return this.currentContextTokens;
@@ -1149,6 +1178,7 @@ export class QueryEngine extends EventEmitter {
           : undefined;
 
         // 3. Multi-Tier Micro-Compaction & Trajectory Compression
+        this.contextMicroCompactor.setMaxContextTokens(effectiveMaxTokens);
         const compactionResult = this.contextMicroCompactor.optimize(
           this.messages,
           {

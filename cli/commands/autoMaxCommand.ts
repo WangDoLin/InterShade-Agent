@@ -1,6 +1,40 @@
 import type { LocalCommand, CommandContext } from './types.js';
 import { AutoMaxEngine } from '../../engine/autonomous/AutoMaxEngine.js';
 
+export interface ParsedAutoMaxOptions {
+  goal?: string;
+  durationMinutes?: number;
+  maxIterations?: number;
+}
+
+export function parseAutoMaxArgs(args: string[]): ParsedAutoMaxOptions {
+  let durationMinutes: number | undefined;
+  let maxIterations: number | undefined;
+  const filteredWords: string[] = [];
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === '--duration' || arg === '-d') {
+      const val = parseInt(args[i + 1], 10);
+      if (!isNaN(val)) {
+        durationMinutes = val;
+        i++;
+      }
+    } else if (arg === '--iterations' || arg === '-n') {
+      const val = parseInt(args[i + 1], 10);
+      if (!isNaN(val)) {
+        maxIterations = val;
+        i++;
+      }
+    } else {
+      filteredWords.push(arg);
+    }
+  }
+
+  const goal = filteredWords.join(' ').trim() || undefined;
+  return { goal, durationMinutes, maxIterations };
+}
+
 let sharedAutoMaxEngine: AutoMaxEngine | null = null;
 
 export function getSharedAutoMaxEngine(): AutoMaxEngine {
@@ -22,31 +56,7 @@ export const autoMaxCommand: LocalCommand = {
 
     // 1. /automax on [goal] [--duration <mins>] [--iterations <N>]
     if (sub === 'on' || sub === 'enable' || sub === 'start') {
-      const restArgs = ctx.args.slice(1);
-      let durationMinutes: number | undefined;
-      let maxIterations: number | undefined;
-      const filteredWords: string[] = [];
-
-      for (let i = 0; i < restArgs.length; i++) {
-        const arg = restArgs[i];
-        if (arg === '--duration' || arg === '-d') {
-          const val = parseInt(restArgs[i + 1], 10);
-          if (!isNaN(val)) {
-            durationMinutes = val;
-            i++;
-          }
-        } else if (arg === '--iterations' || arg === '-n') {
-          const val = parseInt(restArgs[i + 1], 10);
-          if (!isNaN(val)) {
-            maxIterations = val;
-            i++;
-          }
-        } else {
-          filteredWords.push(arg);
-        }
-      }
-
-      const goal = filteredWords.join(' ').trim() || undefined;
+      const { goal, durationMinutes, maxIterations } = parseAutoMaxArgs(ctx.args.slice(1));
 
       st.autoMaxMode = true;
       st.maxingMode = true;
@@ -115,31 +125,7 @@ export const autoMaxCommand: LocalCommand = {
 
     // 4. /automax run <goal> [--duration <mins>] [--iterations <N>]
     if (sub === 'run') {
-      const restArgs = ctx.args.slice(1);
-      let durationMinutes: number | undefined;
-      let maxIterations: number | undefined;
-      const filteredWords: string[] = [];
-
-      for (let i = 0; i < restArgs.length; i++) {
-        const arg = restArgs[i];
-        if (arg === '--duration' || arg === '-d') {
-          const val = parseInt(restArgs[i + 1], 10);
-          if (!isNaN(val)) {
-            durationMinutes = val;
-            i++;
-          }
-        } else if (arg === '--iterations' || arg === '-n') {
-          const val = parseInt(restArgs[i + 1], 10);
-          if (!isNaN(val)) {
-            maxIterations = val;
-            i++;
-          }
-        } else {
-          filteredWords.push(arg);
-        }
-      }
-
-      const goal = filteredWords.join(' ').trim();
+      const { goal, durationMinutes, maxIterations } = parseAutoMaxArgs(ctx.args.slice(1));
       if (!goal) {
         return '[AUTOMAX]: Please provide a goal or objective. Usage: /automax run <goal> [--duration <mins>] [--iterations <N>]';
       }
@@ -158,18 +144,25 @@ export const autoMaxCommand: LocalCommand = {
 
       const engine = getSharedAutoMaxEngine();
       const qe = (ctx.sessionState as Record<string, unknown>).queryEngine as
-        | { processQuery: (prompt: string) => Promise<string> }
+        | { executeUserPrompt?: (prompt: string) => Promise<string>; processQuery?: (prompt: string) => Promise<string> }
         | undefined;
       const report = await engine.runMission({
         sessionId: String(ctx.sessionState.id || 'cli-automax'),
         cwd: ctx.cwd,
+        runner: (ctx.sessionState as Record<string, unknown>).runner as any,
         goal,
         durationMinutes,
         maxIterations,
         thinkingBudget: 16384,
         executor: qe
           ? async (prompt: string) => {
-              return await qe.processQuery(prompt);
+              if (typeof qe.executeUserPrompt === 'function') {
+                return await qe.executeUserPrompt(prompt);
+              }
+              if (typeof qe.processQuery === 'function') {
+                return await qe.processQuery(prompt);
+              }
+              throw new Error('QueryEngine does not implement executeUserPrompt');
             }
           : undefined,
       });

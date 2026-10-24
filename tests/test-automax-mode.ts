@@ -1,11 +1,12 @@
 import assert from 'node:assert';
 import { randomUUID } from 'node:crypto';
 import React from 'react';
-import { autoMaxCommand } from '../cli/commands/autoMaxCommand.js';
+import { autoMaxCommand, parseAutoMaxArgs } from '../cli/commands/autoMaxCommand.js';
 import { AutoMaxEngine } from '../engine/autonomous/AutoMaxEngine.js';
 import { QueryEngine } from '../orchestrator/QueryEngine.js';
 import { StatusLine } from '../ui/components/StatusLine.js';
 import { TaskManager } from '../state/TaskManager.js';
+import { VerificationGate } from '../engine/VerificationGate.js';
 import type { ProcessRunner } from '../engine/ports/ProcessRunner.js';
 
 async function runTests() {
@@ -238,10 +239,90 @@ async function runTests() {
   assert.strictEqual((statusElement.props as any).autoMaxMode, true, 'StatusLine receives autoMaxMode=true prop');
   console.log('  [PASS] StatusLine component props accept autoMaxMode.');
 
+  // 10. Test parseAutoMaxArgs parsing logic
+  console.log('\n10. Testing parseAutoMaxArgs parsing options and flags...');
+  const parsed1 = parseAutoMaxArgs(['Self-evolve', 'and', 'optimize', '--duration', '120', '--iterations', '20']);
+  assert.strictEqual(parsed1.goal, 'Self-evolve and optimize');
+  assert.strictEqual(parsed1.durationMinutes, 120);
+  assert.strictEqual(parsed1.maxIterations, 20);
+
+  const parsed2 = parseAutoMaxArgs(['-d', '45', '-n', '8', 'Refactor', 'pipeline']);
+  assert.strictEqual(parsed2.goal, 'Refactor pipeline');
+  assert.strictEqual(parsed2.durationMinutes, 45);
+  assert.strictEqual(parsed2.maxIterations, 8);
+  console.log('  [PASS] parseAutoMaxArgs correctly parses flags and goal targets.');
+
+  // 11. Test /automax run command wired to QueryEngine executeUserPrompt
+  console.log('\n11. Testing /automax run execution with executeUserPrompt executor...');
+  let executeUserPromptCalled = false;
+  let receivedPrompt = '';
+  const runSessionId = `test-run-${randomUUID()}`;
+  const mockQe = {
+    executeUserPrompt: async (prompt: string) => {
+      executeUserPromptCalled = true;
+      receivedPrompt = prompt;
+      // Mark task complete so mission completes on 1st iteration
+      const tasks = TaskManager.listTasks(runSessionId);
+      if (tasks.length > 0) {
+        TaskManager.updateTask(runSessionId, tasks[0].id, { status: 'completed' });
+      }
+      return 'Mock execution finished';
+    },
+  };
+
+  const runState: Record<string, unknown> = {
+    id: runSessionId,
+    queryEngine: mockQe,
+    runner: mockRunner,
+    permissionMode: 'default',
+    maxingMode: false,
+    autoMaxMode: false,
+  };
+
+  const runResult = await autoMaxCommand.execute({
+    args: ['run', 'Harden edge invariants', '--duration', '60', '--iterations', '1'],
+    sessionState: runState,
+    cwd: process.cwd(),
+  });
+
+  assert.strictEqual(executeUserPromptCalled, true, 'executeUserPrompt must be invoked');
+  assert.ok(receivedPrompt.includes('Mode AutoMax'), 'Prompt must contain AutoMax autonomous directives');
+  assert.ok(runResult.includes('AUTOMAX EVOLUTION REPORT'), 'Report summary must be returned');
+  assert.strictEqual(runState.autoMaxMode, true, 'autoMaxMode must be set to true');
+  assert.strictEqual(runState.maxTurns, 0, 'maxTurns must be unconstrained (0)');
+  console.log('  [PASS] /automax run executes cleanly via QueryEngine.executeUserPrompt.');
+
+  // 12. Test QueryEngine setAutoMaxMode unconstrains maxTurns
+  console.log('\n12. Testing QueryEngine setAutoMaxMode maxTurns manipulation...');
+  const qeTurns = new QueryEngine({
+    sessionId: `test-qe-turns-${randomUUID()}`,
+    cwd: process.cwd(),
+    model: 'gemini-3.8-flash',
+    provider: 'google',
+    maxTokens: 4096,
+    permissionMode: 'default',
+    maxTurns: 100,
+  });
+
+  assert.strictEqual(qeTurns.getMaxTurns(), 100);
+  qeTurns.setAutoMaxMode(true, { goal: 'Unconstrained execution' });
+  assert.strictEqual(qeTurns.getMaxTurns(), 0, 'maxTurns must be 0 (unlimited) when AutoMax is active');
+
+  qeTurns.setAutoMaxMode(false);
+  assert.strictEqual(qeTurns.getMaxTurns(), 100, 'maxTurns must revert to 100 when AutoMax is disabled');
+  console.log('  [PASS] QueryEngine unconstrains maxTurns to 0 in AutoMax mode.');
+
+  // 13. Test VerificationGate async non-blocking execution
+  console.log('\n13. Testing VerificationGate async non-blocking verification...');
+  const tscAsyncRes = await VerificationGate.verifyTypeScriptAsync(process.cwd(), mockRunner);
+  assert.strictEqual(tscAsyncRes.passed, true, 'verifyTypeScriptAsync should pass on clean codebase');
+  console.log('  [PASS] VerificationGate.verifyTypeScriptAsync operates non-blockingly.');
+
   // Cleanup
   TaskManager.clearAllTasks(testSessionId);
   TaskManager.clearAllTasks(timeSessionId);
   TaskManager.clearAllTasks(abortSessionId);
+  TaskManager.clearAllTasks(runSessionId);
 
   console.log('\n=== ALL AUTOMAX TESTS PASSED SUCCESSFULLY! [100%] ===');
 }
