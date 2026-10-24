@@ -52,6 +52,7 @@ export const autoMaxCommand: LocalCommand = {
       st.maxingMode = true;
       st.permissionMode = 'auto';
       st.thinkingBudget = 16384;
+      st.maxTurns = 0;
       st.autoMaxConfig = {
         goal,
         durationMinutes,
@@ -142,6 +143,18 @@ export const autoMaxCommand: LocalCommand = {
       if (!goal) {
         return '[AUTOMAX]: Please provide a goal or objective. Usage: /automax run <goal> [--duration <mins>] [--iterations <N>]';
       }
+
+      st.autoMaxMode = true;
+      st.maxingMode = true;
+      st.permissionMode = 'auto';
+      st.thinkingBudget = 16384;
+      st.maxTurns = 0;
+      st.autoMaxConfig = {
+        goal,
+        durationMinutes,
+        maxIterations,
+        thinkingBudget: 16384,
+      };
 
       const engine = getSharedAutoMaxEngine();
       const qe = (ctx.sessionState as Record<string, unknown>).queryEngine as

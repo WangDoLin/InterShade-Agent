@@ -35,6 +35,14 @@ function resolvePlatformCommand(command: string): { cmd: string; useShell: boole
   return { cmd: command, useShell: false };
 }
 
+function quoteArg(arg: string): string {
+  if (arg.length === 0) return '""';
+  if (arg.includes(' ') || arg.includes('\t') || arg.includes('"')) {
+    return `"${arg.replace(/"/g, '\\"')}"`;
+  }
+  return arg;
+}
+
 function sha256Hex(input: string): string {
   return crypto.createHash('sha256').update(input, 'utf8').digest('hex');
 }
@@ -56,13 +64,22 @@ export class NodeProcessRunner implements ProcessRunner {
       let timedOut = false;
       let settled = false;
 
-      const child = spawn(cmd, [...spec.args], {
-        cwd: spec.cwd,
-        env: spec.env ?? process.env,
-        stdio: ['ignore', 'pipe', 'pipe'],
-        shell: useShell,
-        windowsHide: true,
-      });
+      const fullCmd = useShell ? [cmd, ...spec.args.map(quoteArg)].join(' ') : cmd;
+      const child = useShell
+        ? spawn(fullCmd, {
+            cwd: spec.cwd,
+            env: spec.env ?? process.env,
+            stdio: ['ignore', 'pipe', 'pipe'],
+            shell: true,
+            windowsHide: true,
+          })
+        : spawn(cmd, [...spec.args], {
+            cwd: spec.cwd,
+            env: spec.env ?? process.env,
+            stdio: ['ignore', 'pipe', 'pipe'],
+            shell: false,
+            windowsHide: true,
+          });
 
       const finish = (exitCode: number, sig: NodeJS.Signals | null) => {
         if (settled) return;
@@ -136,16 +153,28 @@ export class NodeProcessRunner implements ProcessRunner {
     const maxBytes = spec.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES;
     const { cmd, useShell } = resolvePlatformCommand(spec.command);
 
-    const res = spawnSync(cmd, [...spec.args], {
-      cwd: spec.cwd,
-      env: spec.env ?? process.env,
-      encoding: 'utf8',
-      timeout: spec.timeoutMs,
-      maxBuffer: maxBytes,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      shell: useShell,
-      windowsHide: true,
-    });
+    const fullCmd = useShell ? [cmd, ...spec.args.map(quoteArg)].join(' ') : cmd;
+    const res = useShell
+      ? spawnSync(fullCmd, {
+          cwd: spec.cwd,
+          env: spec.env ?? process.env,
+          encoding: 'utf8',
+          timeout: spec.timeoutMs,
+          maxBuffer: maxBytes,
+          stdio: ['ignore', 'pipe', 'pipe'],
+          shell: true,
+          windowsHide: true,
+        })
+      : spawnSync(cmd, [...spec.args], {
+          cwd: spec.cwd,
+          env: spec.env ?? process.env,
+          encoding: 'utf8',
+          timeout: spec.timeoutMs,
+          maxBuffer: maxBytes,
+          stdio: ['ignore', 'pipe', 'pipe'],
+          shell: false,
+          windowsHide: true,
+        });
 
     const stdout = res.stdout ?? '';
     const stderr = res.stderr ?? (res.error ? res.error.message : '');
