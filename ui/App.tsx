@@ -608,6 +608,14 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
             activeEngine.setMaxingMode(newMaxing, budget);
             updatedState.maxingMode = newMaxing;
           }
+          if ((cmdCtx.sessionState as Record<string, unknown>).autoMaxMode !== undefined) {
+            const newAutoMax = Boolean((cmdCtx.sessionState as Record<string, unknown>).autoMaxMode);
+            const cfg = (cmdCtx.sessionState as Record<string, unknown>).autoMaxConfig as any;
+            finalEngine.setAutoMaxMode(newAutoMax, cfg);
+            activeEngine.setAutoMaxMode(newAutoMax, cfg);
+            updatedState.autoMaxMode = newAutoMax;
+            updatedState.autoMaxConfig = cfg;
+          }
           setSessionState(updatedState);
           if (updatedState.permissionMode && updatedState.permissionMode !== sessionState.permissionMode) {
             finalEngine.setPermissionMode(updatedState.permissionMode);
@@ -905,6 +913,7 @@ export const App: React.FC<AppProps> = ({ queryEngine, initialPrompt }) => {
             columns={terminalColumns}
             maxTurns={sessionState.maxTurns !== undefined ? sessionState.maxTurns : activeEngine.getMaxTurns()}
             maxingMode={Boolean(sessionState.maxingMode ?? activeEngine.getSessionState().maxingMode)}
+            autoMaxMode={Boolean(sessionState.autoMaxMode ?? activeEngine.getSessionState().autoMaxMode)}
           />
 
           {isBusy && swarmTasks.length > 0 && (

@@ -11,6 +11,7 @@
     { "file": "test-ai-research-upgrade-suite.ts", "group": "INT", "tier": "tier2", "timeoutMs": 120000 },
     { "file": "test-anti-obsolescence-2026.ts", "group": "CONTRACT", "tier": "tier1", "timeoutMs": 60000 },
     { "file": "test-anti-stub-and-fake-metrics.ts", "group": "ADV", "tier": "tier1", "timeoutMs": 60000 },
+    { "file": "test-automax-mode.ts", "group": "INT", "tier": "tier1", "timeoutMs": 60000 },
     { "file": "test-attested-proof-v3.ts", "group": "ADV", "tier": "tier2", "timeoutMs": 120000 },
     { "file": "test-autonomous-continuation-and-resilience.ts", "group": "E2E", "tier": "tier2", "timeoutMs": 180000 },
     { "file": "test-autonomous-swe-engine.ts", "group": "E2E", "tier": "tier1", "timeoutMs": 120000, "serial": true },

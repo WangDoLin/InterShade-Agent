@@ -9,6 +9,7 @@ import type {
   PermissionRequest,
   PermissionRequestDetails,
   UserQuestionRequest,
+  AutoMaxConfig,
 } from '../types/index.js';
 import { PermissionEngine } from '../security/PermissionEngine.js';
 import { SessionStore } from '../state/SessionStore.js';
@@ -204,6 +205,7 @@ export class QueryEngine extends EventEmitter {
     return buildBaseSystemPrompt({
       systemPrompt: this.sessionConfig.systemPrompt,
       maxingMode: this.sessionConfig.maxingMode,
+      autoMaxMode: this.sessionConfig.autoMaxMode,
     });
   }
 
@@ -249,6 +251,7 @@ export class QueryEngine extends EventEmitter {
       projectId: this.getProjectId(),
       systemPrompt: this.sessionConfig.systemPrompt,
       maxingMode: this.sessionConfig.maxingMode,
+      autoMaxMode: this.sessionConfig.autoMaxMode,
       activeSkillName: this.activeSkillName,
       currentGoal,
       modifiedFiles: this.getSessionModifiedFiles(),
@@ -350,6 +353,34 @@ export class QueryEngine extends EventEmitter {
       this.sessionState.thinkingBudget = targetBudget;
     }
     this.refreshSystemPrompt();
+  }
+
+  /**
+   * Sets AutoMax Mode: combining unconstrained maxing deliberation with fully autonomous execution.
+   */
+  public setAutoMaxMode(enabled: boolean, autoMaxConfig?: AutoMaxConfig): void {
+    this.sessionConfig.autoMaxMode = enabled;
+    this.sessionState.autoMaxMode = enabled;
+    if (enabled) {
+      this.sessionConfig.autoMaxConfig = autoMaxConfig;
+      this.sessionState.autoMaxConfig = autoMaxConfig;
+      // AutoMax activates Maxing mode with full thinking budget
+      this.setMaxingMode(true, autoMaxConfig?.thinkingBudget || 16384);
+      // AutoMax activates autonomous permission
+      this.setPermissionMode('auto');
+    } else {
+      this.sessionConfig.autoMaxConfig = undefined;
+      this.sessionState.autoMaxConfig = undefined;
+    }
+    this.refreshSystemPrompt();
+  }
+
+  public isAutoMaxActive(): boolean {
+    return Boolean(this.sessionConfig.autoMaxMode);
+  }
+
+  public getAutoMaxConfig(): AutoMaxConfig | undefined {
+    return this.sessionConfig.autoMaxConfig;
   }
 
   getMessages(): UnifiedMessage[] {

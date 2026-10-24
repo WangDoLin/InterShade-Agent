@@ -109,6 +109,30 @@ export interface SessionConfig {
   maxTurns?: number;
   maxingMode?: boolean;
   maxingBudget?: number;
+  autoMaxMode?: boolean;
+  autoMaxConfig?: AutoMaxConfig;
+}
+
+export interface AutoMaxConfig {
+  goal?: string;
+  durationMinutes?: number;
+  maxIterations?: number;
+  thinkingBudget?: number;
+  autoCommit?: boolean;
+}
+
+export interface AutoMaxStatus {
+  active: boolean;
+  goal?: string;
+  durationMinutes?: number;
+  maxIterations?: number;
+  iterationsCompleted: number;
+  startedAt?: number;
+  elapsedMs: number;
+  remainingMs?: number;
+  currentPhase: 'idle' | 'orienting' | 'deliberating' | 'executing' | 'verifying' | 'reflecting' | 'completed';
+  lastVerificationPassed?: boolean;
+  modifiedFilesCount: number;
 }
 
 export interface SessionState {
@@ -128,6 +152,8 @@ export interface SessionState {
   maxingMode?: boolean;
   maxingBudget?: number;
   maxTurns?: number;
+  autoMaxMode?: boolean;
+  autoMaxConfig?: AutoMaxConfig;
 }
 
 export interface PromptTurnEntry {

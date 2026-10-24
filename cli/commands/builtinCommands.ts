@@ -1242,6 +1242,7 @@ export const agentCommand: LocalCommand = {
   }
 };
 
+import { autoMaxCommand } from './autoMaxCommand.js';
 import { skillsCommand } from './domains/skillsCommands.js';
 import {
   proofCommand,
@@ -1280,6 +1281,7 @@ export {
   enhanceCommand,
   auditCommand,
   maxingCommand,
+  autoMaxCommand,
   fuzzCommand,
   worktreeCommand,
   gatewayCommand,
@@ -1349,6 +1351,7 @@ export function registerBuiltinCommands(registry: CommandRegistry): void {
   registry.register(enhanceCommand);
   registry.register(auditCommand);
   registry.register(maxingCommand);
+  registry.register(autoMaxCommand);
   registry.register(helpCommand);
 }
 

@@ -8,6 +8,7 @@ export interface BasePromptOptions {
   readonly customSystemPrompt?: string;
   readonly systemPrompt?: string;
   readonly maxingMode?: boolean;
+  readonly autoMaxMode?: boolean;
 }
 
 export interface FullSystemPromptOptions extends BasePromptOptions {
@@ -50,12 +51,20 @@ export function buildBaseSystemPrompt(options: BasePromptOptions): string {
 - COMPREHENSIVE EDGE-CASE INVARIANTS: Ensure functions satisfy safety invariants (NO_PANIC on null/undefined/boundary numeric inputs, idempotent transformations, and pure contract guarantees).`
     : '';
 
+  const autoMaxDirective = options.autoMaxMode
+    ? `\n\n# Mode AutoMax: Autonomous Self-Evolution & Goal-Driven Horizon Active
+- FULL AUTONOMY ENGAGED: Mode AutoMax combines Mode Max super-intelligence with fully autonomous execution.
+- PROACTIVE SELF-DRIVEN OPERATION: You operate without needing human commands for each turn. You autonomously analyze the codebase, identify tasks, formulate architectures, write code, run verification, and fix regressions.
+- GOAL-BOUND & TIME-BOUND EXECUTION: Relentlessly push towards achieving the mission goal or maximizing system quality within the allocated time/iteration horizon.
+- CONTINUOUS SELF-REFLECTION: After each action, self-reflect on test results and invariants. Do not stop until the objective is empirically proven or all roadmap tasks are completed.`
+    : '';
+
   const customPrompt = options.customSystemPrompt || options.systemPrompt;
   if (customPrompt) {
-    return `${customPrompt}${languageDirective}${modernEngineering2026Directive}${maxingDirective}`;
+    return `${customPrompt}${languageDirective}${modernEngineering2026Directive}${maxingDirective}${autoMaxDirective}`;
   }
 
-  return `You are InterShader, an advanced autonomous coding agent.${languageDirective}${modernEngineering2026Directive}${maxingDirective}
+  return `You are InterShader, an advanced autonomous coding agent.${languageDirective}${modernEngineering2026Directive}${maxingDirective}${autoMaxDirective}
 
 # Grounded Action Awareness & Execution Truth
 - STRICT EXECUTION TRUTH: You have NO memory or knowledge of workspace changes other than confirmed [TOOL RESULT] messages in the conversation history.

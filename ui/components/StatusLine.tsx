@@ -22,6 +22,7 @@ export interface StatusLineProps {
   columns?: number;
   maxTurns?: number;
   maxingMode?: boolean;
+  autoMaxMode?: boolean;
 }
 
 function getContextBar(pct: number, width: number = 8): string {
@@ -89,6 +90,7 @@ export const StatusLine: React.FC<StatusLineProps> = ({
   columns = 80,
   maxTurns,
   maxingMode = false,
+  autoMaxMode = false,
 }) => {
   const [gitInfo, setGitInfo] = useState('...');
   const lastCwdRef = useRef(cwd);
@@ -189,7 +191,15 @@ export const StatusLine: React.FC<StatusLineProps> = ({
             <Text color={THEME.colors.border} wrap="truncate-end">{'\u2502'}</Text>
           </>
         )}
-        {maxingMode && (
+        {autoMaxMode && (
+          <>
+            <Text bold color="#B026FF" wrap="truncate-end">
+              [⚡ AUTOMAX]
+            </Text>
+            <Text color={THEME.colors.border} wrap="truncate-end">{'\u2502'}</Text>
+          </>
+        )}
+        {maxingMode && !autoMaxMode && (
           <>
             <Text bold color="#FF0055" wrap="truncate-end">
               [🚀 MAX]
